@@ -1,0 +1,1036 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Week 3 — GPU Matrix Tiling & On-Chip Data Reuse</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/5.0.4/reset.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/5.0.4/reveal.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/5.0.4/theme/white.min.css">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+SC:wght@300;400;500;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #FAFAFA; --fg: #1a1a1a; --fg-secondary: #555; --fg-muted: #888;
+  --accent: #0066CC; --accent-dim: #004B99;
+  --code-bg: #282C34; --code-fg: #ABB2BF;
+  --border: #E0E0E0; --border-light: #EEEEEE;
+  --tag-bg: #F0F4F8; --tag-fg: #3A6B8C;
+  --success: #2E7D32; --warn: #E67E22; --err: #C0392B;
+}
+.reveal { font-family: 'Inter','Noto Sans SC',-apple-system,sans-serif; font-size:21px; color:var(--fg); background:var(--bg); }
+.reveal h1,.reveal h2,.reveal h3 { font-family: 'Inter','Noto Sans SC',-apple-system,sans-serif; font-weight:600; letter-spacing:-0.02em; text-transform:none; color:var(--fg); }
+.reveal h1 { font-size:2em; }
+.reveal h2 { font-size:1.45em; }
+.reveal h3 { font-size:1.1em; font-weight:500; color:var(--fg-secondary); }
+.reveal .slides section { padding:36px 56px; text-align:left; }
+.reveal p,.reveal li { line-height:1.6; color:var(--fg-secondary); }
+.reveal strong { color:var(--fg); font-weight:600; }
+.reveal code { font-family:'JetBrains Mono',monospace; font-size:0.78em; background:#F0F0F0; padding:1px 5px; border-radius:3px; color:var(--accent-dim); }
+.reveal pre { font-family:'JetBrains Mono',monospace; font-size:0.52em; line-height:1.5; background:var(--code-bg); color:var(--code-fg); padding:14px 18px; border-radius:5px; width:100%; }
+.reveal pre code { background:transparent; padding:0; color:inherit; font-size:inherit; }
+
+.two-col { display:flex; gap:28px; align-items:flex-start; }
+.two-col>* { flex:1; min-width:0; }
+.col-narrow { flex:0.8 !important; }
+.col-wide { flex:1.2 !important; }
+.col-45 { flex:0.45 !important; }
+.col-55 { flex:0.55 !important; }
+
+.title-slide { text-align:left !important; display:flex !important; flex-direction:column; justify-content:center; padding:56px 72px !important; }
+.title-slide h1 { font-size:2.4em; font-weight:700; margin-bottom:10px; line-height:1.15; }
+.title-slide .subtitle { font-size:1.05em; color:var(--fg-secondary); font-weight:400; margin-bottom:36px; }
+.title-slide .meta { font-size:0.72em; color:var(--fg-muted); border-top:1px solid var(--border); padding-top:18px; margin-top:auto; }
+
+.section-slide { text-align:left !important; display:flex !important; flex-direction:column; justify-content:center; padding:56px 72px !important; }
+.section-slide h1 { font-size:2.2em; font-weight:700; }
+.section-slide .context { font-size:0.78em; color:var(--fg-muted); margin-top:14px; letter-spacing:0.03em; }
+
+.chapter-num { font-size:0.65em; color:var(--fg-muted); letter-spacing:0.05em; margin-bottom:6px; }
+
+.tag { display:inline-block; background:var(--tag-bg); color:var(--tag-fg); font-size:0.68em; font-weight:500; padding:2px 9px; border-radius:3px; margin-right:6px; letter-spacing:0.03em; }
+
+.callout { border-left:3px solid var(--accent); background:#F5F8FC; padding:12px 18px; margin:12px 0; border-radius:0 4px 4px 0; font-size:0.82em; }
+.callout-title { font-weight:600; font-size:0.75em; text-transform:uppercase; letter-spacing:0.04em; color:var(--accent-dim); margin-bottom:5px; }
+.callout p { margin:3px 0; }
+.callout-warn { border-left-color:#E6C300; background:#FFFDE7; }
+.callout-warn .callout-title { color:#8D6E00; }
+
+table.clean { width:100%; border-collapse:collapse; font-size:0.68em; }
+table.clean th { text-align:left; font-weight:500; color:var(--fg-muted); font-size:0.76em; text-transform:uppercase; letter-spacing:0.04em; padding:7px 10px 5px; border-bottom:1.5px solid var(--border); }
+table.clean td { padding:7px 10px; border-bottom:1px solid var(--border-light); color:var(--fg-secondary); vertical-align:top; }
+table.clean tr:last-child td { border-bottom:none; }
+table.clean td.num { font-family:'JetBrains Mono',monospace; font-weight:500; color:var(--fg); }
+
+.code-annotate { display:flex; gap:14px; align-items:flex-start; }
+.code-annotate pre { flex:1.15; margin:0; }
+.code-annotate .notes { flex:0.85; font-size:0.65em; color:var(--fg-secondary); line-height:1.55; }
+.code-annotate .notes .pointer { color:var(--accent); font-weight:600; font-size:0.9em; }
+
+hr.thin { border:none; border-top:1px solid var(--border); margin:16px 0; }
+
+.text-muted { color:var(--fg-muted); }
+.text-small { font-size:0.7em; }
+.text-xs { font-size:0.6em; }
+.mt-4 { margin-top:4px; }
+.mt-8 { margin-top:8px; }
+.mt-12 { margin-top:12px; }
+.mt-16 { margin-top:16px; }
+.mt-20 { margin-top:20px; }
+.mb-4 { margin-bottom:4px; }
+.mb-8 { margin-bottom:8px; }
+.font-mono { font-family:'JetBrains Mono',monospace; }
+</style>
+</head>
+<body>
+<div class="reveal"><div class="slides">
+
+<!-- ════════════════════════════════════════════════════════════
+     TITLE
+     ════════════════════════════════════════════════════════════ -->
+<section class="title-slide">
+  <div><span class="tag">Week 3</span><span class="tag">HPC · GPU</span></div>
+  <h1 style="margin-top:24px;">矩阵分块 Tiling<br>&amp; 片上数据复用</h1>
+  <div class="subtitle">从 Naive GEMM 到 Warp-Level Tiling — 在 RTX 4060 上理解分块加速原理</div>
+  <div class="meta">RTX 4060 (Ada Lovelace, AD107) &nbsp;·&nbsp; CUDA 12.x &nbsp;·&nbsp; July 2026</div>
+</section>
+
+<!-- ════════════════════════════════════════════════════════════
+     第一章: 前两周回顾
+     ════════════════════════════════════════════════════════════ -->
+<section>
+  <div class="chapter-num">第一章</div>
+  <h2>前两周回顾 — 为什么要学 Tiling？</h2>
+  <div class="two-col mt-12">
+    <div>
+      <p style="font-weight:600; font-size:0.9em;">Week 1: LLM 推理的两个阶段</p>
+      <table class="clean mt-4">
+        <tr><th></th><th>Prefill</th><th>Decode</th></tr>
+        <tr><td>输入</td><td>全部 prompt tokens</td><td>逐 token 自回归</td></tr>
+        <tr><td>计算量</td><td>大 (QKᵀ: O(N²d))</td><td>极小 (~16 MFLOP)</td></tr>
+        <tr><td>瓶颈</td><td style="color:var(--err);">Compute-bound</td><td style="color:var(--warn);">Memory-bound</td></tr>
+        <tr><td>原因</td><td>大量矩阵乘法</td><td>算 16M FLOP 但要读 16MB KV Cache</td></tr>
+      </table>
+      <p style="font-weight:600; font-size:0.9em; margin-top:12px;">Week 2: GPU 存储层次</p>
+      <table class="clean mt-4">
+        <tr><th>存储层</th><th>大小</th><th>延迟</th><th>带宽</th></tr>
+        <tr><td>VRAM/HBM</td><td>8 GB</td><td>~400 cyc</td><td>272 GB/s</td></tr>
+        <tr><td>L2</td><td>24 MB</td><td>~200 cyc</td><td>~1 TB/s</td></tr>
+        <tr><td>Shared Mem</td><td>48 KB/SM</td><td>~20 cyc</td><td>~十几 TB/s</td></tr>
+        <tr><td>Register</td><td>256 KB/SM</td><td>~1 cyc</td><td>极高</td></tr>
+      </table>
+    </div>
+    <div>
+      <p style="font-weight:600; font-size:0.9em;">FlashAttention — Tiling 在 Attention 中的示范</p>
+      <p style="font-size:0.72em; color:var(--fg-secondary);">标准 Attention 的中间结果 S = QKᵀ 和 P = softmax(S) 都是 O(N²)，N=8192 时达 256 MB，全写回 HBM。</p>
+      <pre style="font-size:0.48em; margin-top:8px;"><code class="language-python"># FlashAttention: 不存 S 和 P，把 Q,K,V 切成小块
+# 外层循环 (K/V blocks), 内层循环 (Q blocks)
+for Kj, Vj in K_blocks, V_blocks:
+    load Kj, Vj from HBM → SRAM
+    for Qi in Q_blocks:
+        load Qi from HBM → SRAM
+        Sij = Qi × Kj^T        # on SRAM, NOT written back
+        Pij = softmax(Sij)      # on SRAM, NOT written back
+        Oi += Pij × Vj          # accumulate on SRAM
+    # only O written back to HBM</code></pre>
+      <div class="callout mt-8">
+        <div class="callout-title">共同的核心</div>
+        <p>数据切块 → 片上计算 → 中间结果不写回 HBM → 省 O(N²) 带宽。这就是 tiling + 片上数据复用。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="chapter-num">第一章 · 续</div>
+  <h2>知识链路 — 三周如何串起来</h2>
+  <div style="display:flex; gap:20px; margin-top:20px;">
+    <div style="flex:1; border:1px solid var(--border); border-radius:5px; padding:16px;">
+      <div style="font-size:0.6em; color:var(--fg-muted);">WEEK 1</div>
+      <div style="font-weight:600;">FlashAttention</div>
+      <p style="font-size:0.7em; color:var(--fg-secondary); margin-top:6px;">核心技巧: Tiling + Online Softmax + 片上计算。本质是用 tiling 减少 HBM 访问。</p>
+    </div>
+    <div style="color:var(--fg-muted); padding-top:20px;">→</div>
+    <div style="flex:1; border:1px solid var(--border); border-radius:5px; padding:16px;">
+      <div style="font-size:0.6em; color:var(--fg-muted);">WEEK 2</div>
+      <div style="font-weight:600;">GPU 存储层次</div>
+      <p style="font-size:0.7em; color:var(--fg-secondary); margin-top:6px;">理解了 HBM / Shared Memory / Register 的速度差距。建立"把数据往快的存储搬"的直觉。</p>
+    </div>
+    <div style="color:var(--fg-muted); padding-top:20px;">→</div>
+    <div style="flex:1; border:2px solid var(--accent); border-radius:5px; padding:16px; background:#FAFCFF;">
+      <div style="font-size:0.6em; color:var(--fg-muted);">WEEK 3 (本周)</div>
+      <div style="font-weight:600;">Tiling + 片上数据复用</div>
+      <p style="font-size:0.7em; color:var(--fg-secondary); margin-top:6px;">把 FlashAttention 的 tiling 思想剥离到最简单的 GEMM 场景，从 block-level 到 warp-level，彻底搞懂数据复用。</p>
+    </div>
+  </div>
+  <div class="callout mt-16">
+    <div class="callout-title">RTX 4060 关键数字 (写进脑子)</div>
+    <p>FP32: <strong>15.1 TFLOPS</strong> (3072 CUDA Cores × 2 FMA × 2.46 GHz) &nbsp;|&nbsp; 带宽: <strong>272 GB/s</strong></p>
+    <p>算术强度阈值: 15.1T / 272G ≈ <strong>55.5 FLOP/Byte</strong> — 低于此 = memory-bound；高于此 = compute-bound</p>
+    <p>FP16 Tensor Core (sparse): <strong>120 TFLOPS</strong>，阈值 441 FLOP/Byte</p>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════════════════════════
+     第二章: Week 2 详细回顾 (已合并到第一章, 此处跳过)
+     ════════════════════════════════════════════════════════════ -->
+
+<!-- ════════════════════════════════════════════════════════════
+     第三章: 为什么需要 Tiling — Naive GEMM 的访存瓶颈
+     ════════════════════════════════════════════════════════════ -->
+<section class="section-slide">
+  <div class="chapter-num">第三章</div>
+  <h1>为什么需要 Tiling</h1>
+  <div class="context">Naive GEMM 的访存瓶颈 — 算术强度 0.27 FLOP/Byte vs 需要的 55.5</div>
+</section>
+
+<section>
+  <div class="chapter-num">第三章</div>
+  <h2>Naive GEMM — 逐行分析 GPU 上发生了什么</h2>
+  <div class="code-annotate mt-8">
+    <pre><code class="language-cuda">__global__ void sgemm_naive(
+    const float* __restrict__ A,  // M×K, row-major
+    const float* __restrict__ B,  // K×N, row-major
+    float* __restrict__ C,        // M×N
+    int M, int N, int K
+) {
+    int row = blockIdx.y * blockDim.y + threadIdx.y;
+    int col = blockIdx.x * blockDim.x + threadIdx.x;
+    if (row >= M || col >= N) return;
+
+    float acc = 0.0f;
+    for (int k = 0; k < K; k++) {
+        // 每次迭代：2 次 Global Memory 读 (~760 cycles) + 1 次 FMA (~1 cycle)
+        acc += A[row * K + k]    // ← Global Memory，~380 cycles
+             * B[k * N + col];   // ← Global Memory，~380 cycles
+    }
+    C[row * N + col] = acc;
+}</code></pre>
+    <div class="notes">
+      <div class="pointer">跟踪一个线程，计算 C[0][0]</div>
+      <p>迭代 k=0: 读 A[0][0] + B[0][0] → 760 cyc 等数据，1 cyc 计算</p>
+      <p>迭代 k=1: 读 A[0][1] + B[1][0] → 又是 760 cyc 等数据</p>
+      <p>...</p>
+      <hr class="thin">
+      <p style="color:var(--err);"><strong>算力利用率 ≈ 1/761 ≈ 0.13%</strong></p>
+      <p style="font-size:0.9em; color:var(--fg-muted);">实际有 L1/L2 cache 和 warp 调度帮忙，不会这么惨，但本质是 memory-bound。</p>
+      <hr class="thin">
+      <p><code>A[row*K+k]</code> — 连续地址 → coalesced ✓</p>
+      <p><code>B[k*N+col]</code> — stride = N×4B → 无法合并 ✗</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="chapter-num">第三章</div>
+  <h2>从"全体数据"看 Naive GEMM 的浪费</h2>
+  <div class="two-col mt-8">
+    <div>
+      <p style="font-weight:600; font-size:0.85em;">A[0][0] 这个元素被读了几次？</p>
+      <ul style="font-size:0.7em; line-height:1.7;">
+        <li>线程(0,0) 读它，算 C[0][0]</li>
+        <li>线程(0,1) 读它，算 C[0][1]</li>
+        <li>线程(0,2) 读它，算 C[0][2]</li>
+        <li>...</li>
+        <li>线程(0, N-1) 读它，算 C[0][N-1]</li>
+      </ul>
+      <p style="font-size:0.72em; margin-top:8px;"><strong>A[0][0] 被 N 个线程各读了一次 = 被读了 N 次！</strong></p>
+      <p style="font-size:0.7em; color:var(--fg-muted);">同理 B[0][0] 被 M 个线程各读了一次。</p>
+    </div>
+    <div>
+      <table class="clean">
+        <tr><th>M=N=K=4096 时</th><th class="num">数值</th></tr>
+        <tr><td>总计算量</td><td class="num">2 × 4096³ ≈ 137 GFLOP</td></tr>
+        <tr><td>总访存量 (worst, 无 cache)</td><td class="num">≈ 512 GB</td></tr>
+        <tr><td>算术强度</td><td class="num" style="color:var(--err); font-weight:700;">0.27 FLOP/Byte</td></tr>
+        <tr><td>RTX 4060 需要的强度 (FP32)</td><td class="num">55.5 FLOP/Byte</td></tr>
+        <tr><td>差距</td><td class="num" style="color:var(--err);">≈ 200×</td></tr>
+      </table>
+    </div>
+  </div>
+  <div class="callout callout-warn mt-12">
+    <div class="callout-title">根本原因</div>
+    <p>GPU 每秒能算 15.1×10¹² 次浮点运算，每秒只能从显存搬 272×10⁹ 字节。每读一个字节必须做 <strong>55.5 次浮点运算</strong> 才能不让算力空转。Naive GEMM 每次读一个字节只做 0.27 次运算 — 算力在疯狂等数据。</p>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════════════════════════
+     第四章: Tiling 算法 — 怎么切、怎么算
+     ════════════════════════════════════════════════════════════ -->
+<section class="section-slide">
+  <div class="chapter-num">第四章</div>
+  <h1>Tiling 算法</h1>
+  <div class="context">怎么切、怎么算 — 把矩阵切成 TILE×TILE 小块，搬到 Shared Memory 再算</div>
+</section>
+
+<section>
+  <div class="chapter-num">第四章</div>
+  <h2>Tiling 核心思路</h2>
+  <div class="two-col mt-8">
+    <div>
+      <p style="font-size:0.78em;">矩阵太大 → 切成小块 (Tiles) → 每次只搬一块到 Shared Memory → 在 Shared Memory 上把这一块能做的计算都做完 → 再换下一块。</p>
+      <p class="font-mono" style="font-size:0.75em; background:#F6F6F6; padding:10px; border-radius:4px; margin-top:10px;">
+        C[i][j] = &Sigma;<sub>k</sub> A[i][k] &times; B[k][j]
+      </p>
+      <p style="font-size:0.72em; margin-top:8px;">把 K 维切成 K/TILE 段。例如 C₀₀ = A₀₀·B₀₀ + A₀₁·B₁₀ + A₀₂·B₂₀</p>
+      <div class="callout mt-8">
+        <div class="callout-title">关键收益</div>
+        <p>A 的每个元素从 HBM 读入次数: <strong>N 次 → N/TILE 次</strong></p>
+        <p>减少倍数 = TILE_SIZE。算术强度 = naive × TILE_SIZE</p>
+      </div>
+    </div>
+    <div>
+      <!-- ASCII-style tiling visualization -->
+      <pre style="font-size:0.44em; line-height:1.3; background:#1E1E1E; color:#CDCDCD; padding:14px;"><code> 矩阵 A (M×K)              矩阵 B (K×N)              矩阵 C (M×N)
+ ┌─────────────────┐      ┌─────────────────┐      ┌─────────────────┐
+ │ A₀₀ │ A₀₁ │ A₀₂ │      │ B₀₀ │ B₀₁ │ B₀₂ │      │ C₀₀ │ C₀₁ │ C₀₂ │
+ │─────┼─────┼─────│      │─────┼─────┼─────│      │─────┼─────┼─────│
+ │ A₁₀ │ A₁₁ │ A₁₂ │      │ B₁₀ │ B₁₁ │ B₁₂ │      │ C₁₀ │ C₁₁ │ C₁₂ │
+ │─────┼─────┼─────│      │─────┼─────┼─────│      │─────┼─────┼─────│
+ │ A₂₀ │ A₂₁ │ A₂₂ │      │ B₂₀ │ B₂₁ │ B₂₂ │      │ C₂₀ │ C₂₁ │ C₂₂ │
+ └─────────────────┘      └─────────────────┘      └─────────────────┘
+ 每个子块: TILE×TILE
+
+ C₀₀ = A₀₀·B₀₀ + A₀₁·B₁₀ + A₀₂·B₂₀
+          ↑ 第 0 个 tile pair       ↑ 第 1 个           ↑ 第 2 个
+
+ 沿 K 维循环 K/TILE 次，每次:
+   1. 把 A tile 和 B tile 从 HBM 搬进 Shared Memory (各搬 1 次)
+   2. Shared Memory 上算完这个 tile 对 C 的贡献 (~20 cyc/读)
+   3. 累加进 Register 的 acc</code></pre>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="chapter-num">第四章</div>
+  <h2>具体数字例子 — M=N=K=4096, TILE=32</h2>
+  <div class="two-col mt-8">
+    <div>
+      <table class="clean">
+        <tr><th></th><th>Naive (worst)</th><th>Tiled (TILE=32)</th></tr>
+        <tr><td>每个 A 元素被读</td><td class="num">N = 4096 次</td><td class="num">N/TILE = 128 次</td></tr>
+        <tr><td>减少倍数</td><td class="num">—</td><td class="num" style="color:var(--success);">32× = TILE_SIZE</td></tr>
+        <tr><td>算术强度</td><td class="num" style="color:var(--err);">0.27 FLOP/Byte</td><td class="num" style="color:var(--warn);">~8.6 FLOP/Byte</td></tr>
+      </table>
+      <div class="callout callout-warn mt-12">
+        <div class="callout-title">改善 32×，但还不够</div>
+        <p>RTX 4060 FP32 需要 55.5 FLOP/Byte 才能 compute-bound。TILE=32 的 8.6 还差 6.5 倍。</p>
+        <p>这就是为什么工业库还要做 Warp-level + Thread-level tiling — 每一层都是一次算术强度倍增。</p>
+      </div>
+    </div>
+    <div>
+      <table class="clean">
+        <tr><th>精度</th><th>需要的强度</th><th>Tiled 能达到</th><th>差距</th></tr>
+        <tr><td>FP32</td><td class="num">55.5</td><td class="num">8.6</td><td class="num" style="color:var(--err);">6.5×</td></tr>
+        <tr><td>FP16 TC (sparse)</td><td class="num">441</td><td class="num">8.6</td><td class="num" style="color:var(--err);">51×</td></tr>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="chapter-num">第四章</div>
+  <h2>Tiled GEMM Kernel — 完整代码</h2>
+  <div class="code-annotate mt-6">
+    <pre style="max-height:360px;"><code class="language-cuda">#define TILE 32
+
+__global__ void sgemm_tiled(
+    const float* __restrict__ A,   // M × K, row-major
+    const float* __restrict__ B,   // K × N, row-major
+    float* __restrict__ C,         // M × N, row-major
+    int M, int N, int K
+) {
+    // Step 1: Shared Memory — SRAM 上分配，Block 内所有线程共享
+    // TILE×TILE = 1024 float = 4KB, 两个 tile = 8KB (48KB 限制内)
+    __shared__ float As[TILE][TILE];
+    __shared__ float Bs[TILE][TILE];
+
+    // Step 2: 每个线程负责 C 的一个元素
+    int row = blockIdx.y * TILE + threadIdx.y;
+    int col = blockIdx.x * TILE + threadIdx.x;
+    float acc = 0.0f;  // ← 累加器在 Register (~1 cycle)
+
+    int num_tiles = (K + TILE - 1) / TILE;
+
+    // Step 3: 沿 K 维遍历所有 tile pairs
+    for (int t = 0; t < num_tiles; t++) {
+
+        // 3a. 协作加载 A tile (1024 线程各搬 1 个 → 并行完成)
+        int a_col = t * TILE + threadIdx.x;
+        As[threadIdx.y][threadIdx.x] =
+            (row < M && a_col < K) ? A[row * K + a_col] : 0.0f;
+
+        // 3b. 协作加载 B tile
+        int b_row = t * TILE + threadIdx.y;
+        Bs[threadIdx.y][threadIdx.x] =
+            (b_row < K && col < N) ? B[b_row * N + col] : 0.0f;
+
+        // 3c. Barrier 1: "所有人都加载完了"
+        __syncthreads();
+
+        // 3d. Shared Memory 上累加 (~20 cyc/读, 不是 ~400)
+        for (int k = 0; k < TILE; k++)
+            acc += As[threadIdx.y][k] * Bs[k][threadIdx.x];
+
+        // 3e. Barrier 2: "所有人都用完了, 可以覆盖了"
+        __syncthreads();
+    }
+
+    // Step 4: 写回 Global Memory
+    if (row < M && col < N) C[row * N + col] = acc;
+}</code></pre>
+    <div class="notes">
+      <div class="pointer">L1: __shared__</div>
+      <p>物理在 SM 的 SRAM，整个 Block (1024 线程) 共享一份。</p>
+      <div class="pointer mt-6">L3a-b: 协作加载</div>
+      <p>每个线程用唯一的 (threadIdx.y, threadIdx.x) 索引加载 A tile 的一个元素。1024 个 load 并行发出，感知延迟 ≈ 1 次 load。</p>
+      <div class="pointer mt-6">L3c: __syncthreads() #1</div>
+      <p>"数据搬完了才能开始算" — 防止快线程读到慢线程还没写完的旧数据。</p>
+      <div class="pointer mt-6">L3d: 内层累加</div>
+      <p><code>As[ty][k]</code>: A tile 同一行不同列。<code>Bs[k][tx]</code>: B tile 同一列不同行。数据在 Shared Memory，~20 cyc vs ~400 cyc。</p>
+      <div class="pointer mt-6">L3e: __syncthreads() #2</div>
+      <p>"数据用完了才能覆盖" — 防止快线程在慢线程还在读的时候写入下一轮的新数据。</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="chapter-num">第四章</div>
+  <h2>两个 __syncthreads() — 为什么一个都不能少</h2>
+  <div class="two-col mt-6">
+    <div>
+      <div style="font-weight:600; font-size:0.85em;">Barrier 1 — 去掉后的后果</div>
+      <div style="background:#FFF5F5; border:1px solid #F5C6C6; border-radius:3px; padding:10px; font-size:0.66em; margin-top:4px;">
+        <strong>场景：</strong>2 个线程 (简化)，TILE=2。线程 0 加载慢 (还在等 Global Memory)，线程 1 加载快已经进入累加循环。<br>
+        <strong>结果：</strong>线程 1 读到的 As[0][0] 是线程 0 还没写完的旧值/半写值 → C 算错。
+      </div>
+      <div style="font-weight:600; font-size:0.85em; margin-top:14px;">Barrier 2 — 去掉后的后果</div>
+      <div style="background:#FFF5F5; border:1px solid #F5C6C6; border-radius:3px; padding:10px; font-size:0.66em; margin-top:4px;">
+        <strong>场景：</strong>线程 0 算得快，已进入下一轮循环 (t+1)，开始把新 A tile 写入 As[0][0]。线程 1 算得慢，还在读 As[0][0] 做累加。<br>
+        <strong>结果：</strong>线程 1 读到的是一半旧数据 + 一半新数据的混合 → C 混入了下一轮的数据。
+      </div>
+    </div>
+    <div>
+      <pre style="font-size:0.48em;"><code class="language-cuda">for (int t = 0; t < num_tiles; t++) {
+    // ═══ Phase A: Load (Global → Shared) ═══
+    As[threadIdx.y][threadIdx.x] = A[row * K + a_col];
+    Bs[threadIdx.y][threadIdx.x] = B[b_row * N + col];
+
+    __syncthreads();
+    //      ↑ ALL threads MUST reach here before proceeding
+    //      "所有人数据都搬完了，Shared Memory 现在完整安全"
+
+    // ═══ Phase B: Compute (Shared → Register) ═══
+    for (int k = 0; k < TILE; k++)
+        acc += As[threadIdx.y][k] * Bs[k][threadIdx.x];
+
+    __syncthreads();
+    //      ↑ ALL threads MUST finish reading before overwrite
+    //      "所有人都用完了当前 tile，可以安全覆盖"
+}</code></pre>
+      <div class="callout mt-8" style="font-size:0.7em;">
+        <div class="callout-title">本质</div>
+        <p>两个 barrier 定义了一段<strong>临界区</strong>：Shared Memory 在 Load 完成 → Compute 完成之间是只读的。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="chapter-num">第四章</div>
+  <h2>协作加载 — 为什么 1024 线程各搬一个</h2>
+  <div class="two-col mt-6">
+    <div>
+      <table class="clean">
+        <tr><th>方案</th><th>机制</th><th>感知延迟</th></tr>
+        <tr><td style="font-weight:600;">A: 协作加载</td><td>1024 线程各执行 <strong>1 次</strong> Global Load</td><td class="num" style="color:var(--success);">≈ 1× load 延迟</td></tr>
+        <tr><td style="font-weight:600;">B: 单线程循环</td><td>1 线程执行 <strong>1024 次</strong> Global Load</td><td class="num" style="color:var(--err);">1024 × 400 ≈ 390K cyc</td></tr>
+      </table>
+      <div class="callout mt-8">
+        <div class="callout-title">GPU 延迟隐藏的核心</div>
+        <p>1024 个 load 请求同时发出 — 虽然每个都要等几百 cycles，但时间窗口重叠，感知延迟 ≈ 一次 load。</p>
+        <p>同一 warp 的 32 线程访问连续地址 → 硬件 <strong>合并为一次事务</strong> (coalescing)。</p>
+      </div>
+    </div>
+    <div>
+      <pre style="font-size:0.48em;"><code class="language-cuda">// ---- 协作加载 A tile ----
+// 问题: A tile 有 TILE×TILE = 1024 个 float 需要加载
+// 答案: Block 里有 1024 个线程，每个加载一个
+//       (threadIdx.y, threadIdx.x) 对每个线程唯一
+
+int a_col = t * TILE + threadIdx.x;
+//  ↑ 当前 A tile 内的全局列号 (0..K-1)
+
+As[threadIdx.y][threadIdx.x] =              // Shared Memory 对应位置
+    (row < M && a_col < K)                   // 边界检查
+    ? A[row * K + a_col]                     // row 固定 (线程全局行)
+    : 0.0f;                                  // 越界填 0
+
+// ---- 协作加载 B tile ----
+// 对称逻辑: b_row 沿 K 维变化 (用 threadIdx.y)
+
+int b_row = t * TILE + threadIdx.y;
+Bs[threadIdx.y][threadIdx.x] =
+    (b_row < K && col < N) ? B[b_row * N + col] : 0.0f;
+
+// 注意: B tile 不转置 — 保持 row-major 布局
+// 后续计算用 Bs[k][threadIdx.x] (沿 K 遍历行)</code></pre>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="chapter-num">第四章</div>
+  <h2>Shared Memory Bank Conflict</h2>
+  <div class="two-col mt-6">
+    <div>
+      <p style="font-size:0.78em;">Shared Memory 分为 <strong>32 个 bank</strong>，每个 bank 每 cycle 服务一个线程。同一 warp 的多个线程访问同一 bank 的不同地址 → <strong>bank conflict</strong>，串行化。</p>
+      <div class="callout mt-8">
+        <div class="callout-title">当前 Kernel (TILE=32) — 恰好无冲突</div>
+        <p><code>As[ty][k]</code>: 同一 warp 所有线程有相同的 ty → 访问<strong>同一地址</strong> → 广播，无冲突 ✓</p>
+        <p><code>Bs[k][tx]</code>: tx = 0..31，行首对齐 Bank 0 → 32 个 bank 各一个 → 完美散开 ✓</p>
+      </div>
+      <div class="callout callout-warn mt-6">
+        <div class="callout-title">何时出现冲突？</div>
+        <p>列方向访问 <code>As[i][tx]</code> → <code>Bank# = (row×32) % 32 = 0</code> → 全部在 Bank 0 → <strong>32-way conflict</strong>。</p>
+        <p><strong>修复:</strong> <code>__shared__ float As[TILE][TILE+1]</code> — padding 一列打破 stride 对齐。</p>
+      </div>
+    </div>
+    <div>
+      <pre style="font-size:0.46em;"><code class="language-cuda">// ★ TILE=32 为什么没有 bank conflict？
+
+// As[threadIdx.y][k] — same ty for entire warp
+// → 32 threads read SAME address → broadcast → ✓
+
+// Bs[k][threadIdx.x] — tx = 0,1,...,31
+// Bank# = (k*TILE + tx)*4/4 % 32
+//       = (k*32 + tx) % 32
+//       = tx % 32  (k*32 is multiple of 32)
+// → 32 unique banks → ✓ (这是巧合！因为 TILE=32)
+
+// ● 列访问时的冲突:
+// for (int i = 0; i < TILE; i++)
+//     sum += As[i][threadIdx.x];  // column access!
+// As[0][0], As[1][0], ..., As[31][0]
+// Bank# = (row*32+0) % 32 = 0  → ALL in Bank 0 ☠
+
+// ● Fix: padding
+// __shared__ float As[TILE][TILE + 1];
+// stride = 33 → Bank# = row%32 → spread out ✓</code></pre>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="chapter-num">第四章 · 重要纠正</div>
+  <h2>TILE_SIZE 由什么决定？— 三元博弈</h2>
+  <div class="two-col mt-6">
+    <div>
+      <table class="clean">
+        <tr><th>约束</th><th>硬件 (RTX 4060)</th><th>TILE 上限</th></tr>
+        <tr><td>① Shared Memory 容量</td><td style="font-size:0.72em;">48 KB/Block<br>2×TILE²×4B ≤ 48KB</td><td class="num">TILE ≤ 78</td></tr>
+        <tr style="background:#FFF5F5;"><td>② 最大线程数</td><td style="font-size:0.72em;">1024 threads/Block<br>TILE² ≤ 1024</td><td class="num" style="color:var(--err); font-weight:700;">TILE ≤ 32</td></tr>
+        <tr><td>③ Register File</td><td style="font-size:0.72em;">65536 regs/SM<br>~32 regs×TILE² ≤ 65536</td><td class="num">TILE ≤ 45</td></tr>
+      </table>
+      <p style="font-size:0.72em; margin-top:6px;">TILE<sub>MAX</sub> = min(78, <strong style="color:var(--err);">32</strong>, 45) = <strong style="color:var(--err);">32</strong></p>
+      <div class="callout callout-warn mt-6">
+        <div class="callout-title">"SRAM 决定 block_size" — 不完整</div>
+        <p>本周代码中 <strong>真正卡住 TILE 的是 1024 线程上限</strong>，不是 Shared Memory (TILE=32 只用 8KB/48KB)。</p>
+        <p>Block Size = Shared Memory、线程上限、Register <strong>三者的最小交集</strong>。</p>
+      </div>
+    </div>
+    <div>
+      <div style="border:1px solid var(--border); border-radius:4px; padding:12px; font-size:0.7em;">
+        <p style="font-weight:600;">如何突破 TILE=32？Thread-level Tiling</p>
+        <p>CUTLASS 用 <strong>256 线程</strong> 加载 <strong>128×128</strong> Shared Memory tile:</p>
+        <ul style="margin-top:4px; font-size:0.9em;">
+          <li>每个线程循环多次 + float4 搬运</li>
+          <li>线程数约束 → 放松 ✓</li>
+          <li>Shared Memory 约束 → 收紧 (用更多)</li>
+          <li>Register 约束 → 收紧 (64 累加器/线程)</li>
+        </ul>
+        <p style="margin-top:4px; color:var(--fg-muted);">三个约束此消彼长 — 最优值由 Occupancy 决定。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="chapter-num">第四章</div>
+  <h2>Tile Size 调参实验</h2>
+  <table class="clean mt-6">
+    <tr><th>TILE</th><th>Shared Mem</th><th>复用因子</th><th>线程数</th><th>预期</th></tr>
+    <tr><td class="num">8</td><td class="num">512 B</td><td class="num">8</td><td class="num">64</td><td style="color:var(--err);">很慢 — 复用太少，算术强度 ≈ naive×8</td></tr>
+    <tr><td class="num">16</td><td class="num">2 KB</td><td class="num">16</td><td class="num">256</td><td>中等 — 有提升但不明显</td></tr>
+    <tr style="background:#F0F7EC;"><td class="num" style="font-weight:700;">32</td><td class="num">8 KB</td><td class="num">32</td><td class="num">1024</td><td style="color:var(--success); font-weight:600;">最优 — 复用 + Occupancy 最佳平衡点</td></tr>
+    <tr><td class="num" style="color:var(--err);">64</td><td class="num">32 KB</td><td class="num">64</td><td class="num" style="color:var(--err);">4096 ✗</td><td style="color:var(--err);">超过 1024 线程上限，kernel 启动失败</td></tr>
+  </table>
+  <div class="callout mt-8">
+    <div class="callout-title">核心权衡</div>
+    <p>Tile 越大 → 复用越多 (好) &nbsp;vs&nbsp; Shared Memory 占用越大 → Occupancy 下降 → 延迟隐藏变弱 (坏)。<br>
+    但如果 Tile 大过 32，在当前代码写法下线程数直接超 1024 → <strong>kernel 启动不了</strong>，这是硬约束。</p>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════════════════════════
+     第五章: 多级 Tiling — Block → Warp → Thread
+     ════════════════════════════════════════════════════════════ -->
+<section class="section-slide">
+  <div class="chapter-num">第五章</div>
+  <h1>多级 Tiling</h1>
+  <div class="context">Block → Warp → Thread — 每一层都让数据离算力更近一步</div>
+</section>
+
+<section>
+  <div class="chapter-num">第五章</div>
+  <h2>为什么需要多级 Tiling</h2>
+  <p style="font-size:0.78em; margin-top:6px;">第四章只做了一级 tiling (Global → Shared)。但 Shared Memory 本身也有 ~20 cycles 延迟。Shared Memory → Register 还能再加速 ~20 倍。工业级实现 (cuBLAS, CUTLASS) 使用<strong>三层 tiling</strong>：</p>
+  <div style="display:flex; flex-direction:column; gap:0; margin-top:10px; font-size:0.7em;">
+    <div style="border:1px solid var(--border); border-radius:5px; padding:12px 16px; background:white;">
+      <div style="font-weight:600;">Layer 1 — Block Tile (Global → Shared)</div>
+      <div style="margin-top:4px; color:var(--fg-secondary);">Tile: 128×128 或 32×32 &nbsp;|&nbsp; 延迟: ~400 → ~20 cyc &nbsp;|&nbsp; Block 内所有线程共享</div>
+    </div>
+    <div style="width:1.5px; height:10px; background:var(--border); margin-left:26px;"></div>
+    <div style="border:1px solid var(--border); border-radius:5px; padding:12px 16px; background:white;">
+      <div style="font-weight:600;">Layer 2 — Warp Tile (Shared → Register)</div>
+      <div style="margin-top:4px; color:var(--fg-secondary);">Block tile 内切成 warp tile (64×64, 32×32) &nbsp;|&nbsp; 延迟: ~20 → ~1 cyc &nbsp;|&nbsp; 一个 warp 的 32 线程协作</div>
+    </div>
+    <div style="width:1.5px; height:10px; background:var(--border); margin-left:26px;"></div>
+    <div style="border:1px solid var(--border); border-radius:5px; padding:12px 16px; background:white;">
+      <div style="font-weight:600;">Layer 3 — Thread Tile (Register 编排)</div>
+      <div style="margin-top:4px; color:var(--fg-secondary);">每个线程算 8×8=64 个 C 元素 &nbsp;|&nbsp; 64 个累加器在 Register &nbsp;|&nbsp; float4 向量化访存</div>
+    </div>
+  </div>
+  <div class="callout mt-8">
+    <div class="callout-title">为什么 Layer 2 很重要</div>
+    <p>Block tile 虽然存在 Shared Memory 比 HBM 快，但 ~20 cyc 的延迟累积起来仍然可观。内层循环跑 32 次 → 32×20 = 640 cycles。<br>如果把数据先搬进 Register，每次只要 ~1 cycle → 32×1 = 32 cycles — <strong>又快了 20 倍</strong>。</p>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════════════════════════
+     第六章: 实践 — 从零跑通
+     ════════════════════════════════════════════════════════════ -->
+<section class="section-slide">
+  <div class="chapter-num">第六章</div>
+  <h1>实践 — 从零跑通 Tiled GEMM</h1>
+  <div class="context">环境确认 → 编译运行 → Nsight Compute Profiling → 验证正确性</div>
+</section>
+
+<section>
+  <div class="chapter-num">第六章</div>
+  <h2>环境确认 &amp; 编译运行</h2>
+  <div class="two-col mt-6">
+    <div>
+      <p style="font-weight:600; font-size:0.8em;">环境检查</p>
+      <div style="background:var(--code-bg); border-radius:4px; padding:10px 14px; font-size:0.62em;">
+        <code style="color:#98C379;">nvidia-smi</code>
+        <div style="color:#ABB2BF;">→ Driver: 592.00, CUDA 13.1, RTX 4060</div>
+        <code style="color:#98C379; display:block; margin-top:6px;">nvcc --version</code>
+        <div style="color:#ABB2BF;">→ Cuda compilation tools, release 12.x</div>
+        <code style="color:#98C379; display:block; margin-top:6px;">ncu --version</code>
+        <div style="color:#ABB2BF;">→ Nsight Compute (profiling 工具)</div>
+      </div>
+      <p style="font-weight:600; font-size:0.8em; margin-top:10px;">编译 &amp; 运行</p>
+      <div style="background:var(--code-bg); border-radius:4px; padding:10px 14px; font-size:0.62em;">
+        <code style="color:#98C379;">nvcc -O3 -o tiled_gemm.exe tiled_gemm.cu</code><br>
+        <code style="color:#98C379;">.\tiled_gemm.exe</code>
+      </div>
+    </div>
+    <div>
+      <p style="font-weight:600; font-size:0.8em;">预期输出</p>
+      <pre style="font-size:0.52em; margin-top:4px;"><code class="language-plaintext">Matrix: M=1024 N=1024 K=1024
+
+Naive GEMM:          15.234 ms
+Tiled GEMM:           3.456 ms  (speedup: 4.41x)
+Warp-Tiled GEMM:      1.234 ms  (speedup: 12.35x)
+
+--- Correctness ---
+Naive vs CPU:      0 errors / 1048576
+Tiled vs CPU:      0 errors / 1048576
+Warp-tiled vs CPU: 0 errors / 1048576
+
+--- Performance ---
+Kernel              Time(ms)     GFLOPS   Speedup
+GPU Naive             15.234      137.5      1.00x
+GPU Tiled              3.456      606.2      4.41x
+GPU Warp-Tiled         1.234     1698.3     12.35x</code></pre>
+      <p style="font-size:0.6em; color:var(--fg-muted); margin-top:4px;">实际输出数值取决于矩阵大小和 RTX 4060 的 boost clock，以上为示意。</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="chapter-num">第六章</div>
+  <h2>Nsight Compute Profiling — 重点关注的 Metrics</h2>
+  <table class="clean mt-6">
+    <tr><th>Metric</th><th>含义</th><th>为什么看它</th><th>Naive</th><th>Tiled</th></tr>
+    <tr>
+      <td class="font-mono" style="font-size:0.7em;">dram__bytes_read.sum</td>
+      <td>从 HBM 读取的总字节数</td>
+      <td style="font-size:0.72em;"><strong>最直观</strong> — tiling 后应该显著变小</td>
+      <td class="num" style="color:var(--err);">高</td>
+      <td class="num" style="color:var(--success);">低 3-10×</td>
+    </tr>
+    <tr>
+      <td class="font-mono" style="font-size:0.7em;">l1tex__t_sectors_pipe_lsu_<br>mem_global_op_ld.sum</td>
+      <td>Global Load 事务数 (sector 级)</td>
+      <td style="font-size:0.72em;">直接反映 HBM 读了多少次</td>
+      <td class="num" style="color:var(--err);">大</td>
+      <td class="num" style="color:var(--success);">~1/TILE</td>
+    </tr>
+    <tr>
+      <td class="font-mono" style="font-size:0.7em;">sm__throughput.avg.pct_<br>of_peak_sustained_elapsed</td>
+      <td>SM 计算单元利用率 (%)</td>
+      <td style="font-size:0.72em;">有没有从 memory-bound → compute-bound</td>
+      <td class="num" style="color:var(--err);">~20-40%</td>
+      <td class="num" style="color:var(--success);">~60-80%</td>
+    </tr>
+    <tr>
+      <td class="font-mono" style="font-size:0.7em;">sm__warps_active.avg.pct_<br>of_peak_sustained_elapsed</td>
+      <td>活跃 warp 占比 (Occupancy)</td>
+      <td style="font-size:0.72em;">Tile size 选得是否合理</td>
+      <td class="num">高</td>
+      <td class="num">中等</td>
+    </tr>
+    <tr>
+      <td class="font-mono" style="font-size:0.7em;">l1tex__data_bank_conflicts_<br>pipe_lsu_mem_shared_op_ld.sum</td>
+      <td>Shared Memory Bank Conflict</td>
+      <td style="font-size:0.72em;">访问模式是否健康</td>
+      <td class="num">N/A</td>
+      <td class="num" style="color:var(--success);">≈ 0</td>
+    </tr>
+  </table>
+  <div class="mt-8" style="background:var(--code-bg); border-radius:4px; padding:10px 14px;">
+    <code style="color:#98C379; font-size:0.6em;">ncu --set full --launch-skip 0 --launch-count 1 -o naive_report .\tiled_gemm.exe</code><br>
+    <code style="color:#98C379; font-size:0.6em;">ncu --set full --launch-skip 1 --launch-count 1 -o tiled_report .\tiled_gemm.exe</code>
+  </div>
+</section>
+
+<section>
+  <div class="chapter-num">第六章</div>
+  <h2>性能预期 — 三个 Kernel 的对比</h2>
+  <div class="two-col mt-6">
+    <div>
+      <table class="clean">
+        <tr><th>Kernel</th><th>预期 GFLOPS</th><th>达 FP32 峰值</th></tr>
+        <tr><td>Naive (§3)</td><td class="num">~50–100</td><td class="num">< 1%</td></tr>
+        <tr><td>Block Tiling (§4, TILE=32)</td><td class="num">~500–800</td><td class="num">~3–5%</td></tr>
+        <tr><td>+ Warp + Thread (§8)</td><td class="num">~2000–4000</td><td class="num">~13–27%</td></tr>
+        <tr style="background:#F8FAFB;"><td>cuBLAS SGEMM (参考)</td><td class="num">~8000–12000</td><td class="num">~53–80%</td></tr>
+      </table>
+    </div>
+    <div>
+      <p style="font-size:0.68em; color:var(--fg-muted);">从 5% → 27% 这一步 = Warp-level + Thread-level tiling + float4 向量化的贡献。</p>
+      <p style="font-size:0.68em; color:var(--fg-muted);">cuBLAS 还快 2-3× 因为它额外做了：Tensor Core、Double Buffering、cp.async、手写 SASS 指令微调 — 这些就是进阶路线 B、C、D 的内容。</p>
+      <div class="callout mt-8">
+        <div class="callout-title">用 --ptxas-options=-v 查看寄存器用量</div>
+        <p style="font-family:'JetBrains Mono',monospace; font-size:0.75em;">nvcc -O3 --ptxas-options=-v -o gemm.exe gemm.cu</p>
+        <p style="font-size:0.72em;">输出: "Used 80 registers, <strong>0 bytes spill stores</strong>" — 出现 "xx bytes spill stores" → 降低 THREAD_TILE。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════════════════════════
+     第七章: 与 FlashAttention 的对比总结
+     ════════════════════════════════════════════════════════════ -->
+<section class="section-slide">
+  <div class="chapter-num">第七章</div>
+  <h1>与 FlashAttention 的对比总结</h1>
+  <div class="context">GEMM Tiling 是基本招式，FlashAttention 是这个招式在 Attention 场景的延伸</div>
+</section>
+
+<section>
+  <div class="chapter-num">第七章</div>
+  <h2>GEMM Tiling vs FlashAttention</h2>
+  <table class="clean mt-6">
+    <tr><th>维度</th><th>GEMM Tiling</th><th>FlashAttention</th></tr>
+    <tr><td>输入</td><td>A (M×K), B (K×N)</td><td>Q (N×d), K (N×d), V (N×d)</td></tr>
+    <tr><td>中间结果</td><td>部分累加和 (简单加法)</td><td style="font-size:0.78em;">softmax 分子/分母 — 需要 Online Softmax (running max/sum)</td></tr>
+    <tr><td>循环结构</td><td>单层 (沿 K 维)</td><td>双层 (外层 K/V，内层 Q)</td></tr>
+    <tr><td>片上复用对象</td><td>A tile 和 B tile 的元素</td><td>Q tile、K tile 的元素</td></tr>
+    <tr><td>省了什么 HBM 读写</td><td>A 和 B 的重复读取</td><td style="font-size:0.78em;"><strong>S = QKᵀ 和 P = softmax(QKᵀ)</strong> — O(N²) 中间矩阵，完全不写回 HBM</td></tr>
+    <tr><td>共享核心技术</td><td colspan="2" style="text-align:center;">Shared Memory/SRAM 协作加载 + barrier 护栏 + tile 内数据复用</td></tr>
+  </table>
+  <div class="callout mt-10">
+    <div class="callout-title">一句话归纳</div>
+    <p>学懂了 GEMM Tiling，FlashAttention 的底层逻辑就懂了 <strong>80%</strong>。剩下 20% 是 Online Softmax (数值计算技巧) 和双层循环结构。</p>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════════════════════════
+     第八章: 进阶 — Warp-level Tiling
+     ════════════════════════════════════════════════════════════ -->
+<section class="section-slide">
+  <div class="chapter-num">第八章</div>
+  <h1>进阶: Warp-level Tiling<br>&amp; Register 数据复用</h1>
+  <div class="context">从 Shared Memory 搬到 Register — 内层循环再快 20 倍</div>
+</section>
+
+<section>
+  <div class="chapter-num">第八章</div>
+  <h2>当前 Kernel 的瓶颈在哪</h2>
+  <div class="two-col mt-6">
+    <div>
+      <p style="font-size:0.78em;">Block-level tiling 解决了 Global Memory (~400 cyc) 的问题。但内层循环<strong>每次迭代仍然从 Shared Memory 读数据</strong>：</p>
+      <p class="font-mono" style="font-size:0.72em; background:#F6F6F6; padding:8px; border-radius:3px;">
+        for (int k = 0; k < TILE; k++)<br>
+        &nbsp;&nbsp;acc += As[ty][k] * Bs[k][tx];<br>
+        &nbsp;&nbsp;// ↑ Shared Memory, ~20 cyc/次
+      </p>
+      <p style="font-size:0.78em; margin-top:8px;">TILE 次迭代累积的 Shared Memory 延迟 = <strong>32 × 20 = 640 cycles</strong>。</p>
+      <p style="font-size:0.78em;">如果数据在 Register (~1 cyc)：<strong>32 × 1 = 32 cycles — 再快 20 倍</strong>。</p>
+    </div>
+    <div>
+      <pre style="font-size:0.48em;"><code class="language-cuda">// 当前: 内层循环数据来自 Shared Memory
+for (int k = 0; k < TILE; k++)
+    acc += As[threadIdx.y][k]    // Shared → ~20 cyc
+         * Bs[k][threadIdx.x];   // Shared → ~20 cyc
+
+// Warp tiling 要做的事:
+// 在内层循环之前，先把数据从 Shared Memory 搬到 Register
+
+// Step 1: 从 Shared Memory 加载 fragment 到 Register
+float a_reg[8];  // 8 个 A 元素在寄存器里
+float b_reg[8];  // 8 个 B 元素在寄存器里
+for (int i = 0; i < 8; i++) {
+    a_reg[i] = As[ty*8 + i][k];  // 搬一次 (~20 cyc)
+    b_reg[i] = Bs[k][tx*8 + i];  // 搬一次 (~20 cyc)
+}
+
+// Step 2: 在 Register 上做所有乘加
+// 8×8 = 64 FMAs, 全部 ~1 cycle/次
+for (int i = 0; i < 8; i++)
+    for (int j = 0; j < 8; j++)
+        c_frag[i][j] += a_reg[i] * b_reg[j];
+// Reuse ratio: 64 FMAs / 16 shared loads = 4x</code></pre>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="chapter-num">第八章</div>
+  <h2>完整的 Warp-Tiled Kernel 结构</h2>
+  <div class="two-col mt-4">
+    <div class="col-45">
+      <table class="clean">
+        <tr><th>维度</th><th>Block-only (§4)</th><th>+ Warp + Thread</th></tr>
+        <tr><td>Block Tile</td><td class="num">32×32</td><td class="num">64×64</td></tr>
+        <tr><td>Threads/Block</td><td class="num">1024</td><td class="num">64 (8×8)</td></tr>
+        <tr><td>C 元素/线程</td><td class="num">1</td><td class="num">64 (8×8)</td></tr>
+        <tr><td>内层数据源</td><td>Shared (~20 cyc)</td><td>Register (~1 cyc)</td></tr>
+        <tr><td>向量化</td><td>无</td><td>float4 ready</td></tr>
+        <tr><td>寄存器/线程</td><td class="num">~4</td><td class="num">~80</td></tr>
+      </table>
+      <div class="callout mt-8">
+        <div class="callout-title">关键突破</div>
+        <p>64 线程 (8×8) → 线程约束被打破。Block Tile 反而从 32→64。Shared Memory / Register 成为新瓶颈。约束此消彼长。</p>
+      </div>
+    </div>
+    <div class="col-55">
+      <pre style="font-size:0.45em; max-height:400px;"><code class="language-cuda">#define BLOCK_TILE 64    // Block tile in Shared Memory
+#define THREAD_TILE 8    // Each thread computes 8×8 C elements
+
+__global__ void sgemm_warp_tiled(...) {
+    __shared__ float As[BLOCK_TILE][BLOCK_TILE]; // 64×64×4B = 16KB
+    __shared__ float Bs[BLOCK_TILE][BLOCK_TILE]; // 16KB, total 32KB
+
+    int tx = threadIdx.x, ty = threadIdx.y; // 0..7
+    int c_row = blockIdx.y * BLOCK_TILE + ty * THREAD_TILE;
+    int c_col = blockIdx.x * BLOCK_TILE + tx * THREAD_TILE;
+
+    float c_frag[THREAD_TILE][THREAD_TILE] = {0.0f}; // 64 regs
+    float a_reg[THREAD_TILE], b_reg[THREAD_TILE];     // 16 regs
+
+    for (int bk = 0; bk < K; bk += BLOCK_TILE) {
+        // (1) Cooperative load: Global → Shared
+        // 64 threads × loop iterations = fill 64×64
+        int total = blockDim.x * blockDim.y; // 64
+        for (int off = 0; off < BLOCK_TILE*BLOCK_TILE; off += total) {
+            int idx = off + ty * blockDim.x + tx;
+            int r = idx / BLOCK_TILE, c = idx % BLOCK_TILE;
+            As[r][c] = (/*bounds*/) ? A[...] : 0.0f;
+            Bs[r][c] = (/*bounds*/) ? B[...] : 0.0f;
+        }
+        __syncthreads();
+
+        // (2) Inner loop: Shared → Register → Compute
+        for (int k = 0; k < BLOCK_TILE; k++) {
+            for (int i = 0; i < THREAD_TILE; i++)
+                a_reg[i] = As[ty*THREAD_TILE + i][k];
+            for (int j = 0; j < THREAD_TILE; j++)
+                b_reg[j] = Bs[k][tx*THREAD_TILE + j];
+
+            // Register × Register, ~1 cycle per FMA
+            for (int i = 0; i < THREAD_TILE; i++)
+                for (int j = 0; j < THREAD_TILE; j++)
+                    c_frag[i][j] += a_reg[i] * b_reg[j];
+        }
+        __syncthreads();
+    }
+    // (3) Write back: Register → Global
+    for (int i = 0; i < THREAD_TILE; i++)
+        for (int j = 0; j < THREAD_TILE; j++)
+            if (c_row+i < M && c_col+j < N)
+                C[(c_row+i)*N + (c_col+j)] = c_frag[i][j];
+}</code></pre>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="chapter-num">第八章</div>
+  <h2>Register 压力与 Thread Tile 大小的权衡</h2>
+  <div class="two-col mt-6">
+    <div>
+      <table class="clean">
+        <tr><th>Thread Tile</th><th>C 元素</th><th>Regs/Thread</th><th>风险</th></tr>
+        <tr><td class="num">4×4</td><td class="num">16</td><td class="num">~24</td><td style="color:var(--success);">安全 ✓</td></tr>
+        <tr><td class="num" style="font-weight:600;">8×8</td><td class="num">64</td><td class="num">~80</td><td style="color:var(--success);">适中 ✓</td></tr>
+        <tr><td class="num" style="color:var(--err);">16×16</td><td class="num">256</td><td class="num">~288</td><td style="color:var(--err); font-weight:600;">Spilling ✗</td></tr>
+      </table>
+      <div class="callout callout-warn mt-8">
+        <div class="callout-title">Register Spilling 的后果</div>
+        <p>编译器把溢出寄存器的数据存到 <strong>Local Memory</strong> (物理上在 VRAM/HBM)。<br>你精心搬到寄存器里的数据，被退化成 "从 HBM 读" → <strong>性能反而暴跌</strong>。</p>
+      </div>
+    </div>
+    <div>
+      <p style="font-size:0.78em;">每个线程负责的 THREAD_TILE 越大 → Register 中 C fragment 越大 → 复用越多。但：</p>
+      <pre style="font-size:0.48em; margin-top:8px;"><code class="language-cuda">// THREAD_TILE = 8 → 64 C elements
+// 64 (C_frag) + 8 (A_frag) + 8 (B_frag) ≈ 80 regs/thread ✓
+
+// THREAD_TILE = 16 → 256 C elements
+// 256 + 16 + 16 ≈ 288 regs/thread ✗
+// RTX 4060: 65536 regs/SM
+// 288 regs × 64 threads = 18432 → OK per SM
+// But: 288 regs × 1024 threads (max block) = 294912 → exceeds!
+// Compiler spills → performance tanks</code></pre>
+      <div style="background:var(--code-bg); border-radius:4px; padding:10px 14px; margin-top:8px;">
+        <code style="color:#98C379; font-size:0.58em;">nvcc -O3 --ptxas-options=-v -o gemm.exe gemm.cu</code>
+        <p style="font-size:0.55em; color:#ABB2BF; margin:4px 0 0;">→ "Used 80 registers, <strong style="color:#E06C75;">0 bytes spill stores</strong>" ✓</p>
+        <p style="font-size:0.55em; color:#ABB2BF;">→ "Used 96 registers, <strong style="color:#E06C75;">128 bytes spill stores</strong>" ✗ — 降低 THREAD_TILE</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="chapter-num">第八章</div>
+  <h2>性能预期 &amp; float4 向量化</h2>
+  <div class="two-col mt-6">
+    <div>
+      <p style="font-weight:600; font-size:0.85em;">M=N=K=2048, RTX 4060 FP32 SGEMM:</p>
+      <table class="clean mt-4">
+        <tr><th>Kernel</th><th>GFLOPS</th><th>达峰值</th></tr>
+        <tr><td>Naive (§3)</td><td class="num">~50–100</td><td class="num">< 1%</td></tr>
+        <tr><td>Block Tiling (§4)</td><td class="num">~500–800</td><td class="num">~3–5%</td></tr>
+        <tr><td>+ Warp + Thread (§8)</td><td class="num">~2000–4000</td><td class="num" style="color:var(--success);">~13–27%</td></tr>
+        <tr style="background:#F8FAFB;"><td>cuBLAS (参考)</td><td class="num">~8000–12000</td><td class="num">~53–80%</td></tr>
+      </table>
+    </div>
+    <div>
+      <p style="font-weight:600; font-size:0.85em;">float4 向量化 — 用满 128-bit 带宽</p>
+      <pre style="font-size:0.48em; margin-top:4px;"><code class="language-cuda">// 普通 Shared Memory 读:
+float val = As[ty][k];              // 32-bit load
+// ↑ 只用 1/4 的 Shared Memory 总线带宽
+
+// float4 向量化读:
+float4 vec = reinterpret_cast<float4*>(
+    &As[ty][k * 4]
+)[0];
+// ↑ 一次 load 128-bit = 4 个 float, 用满总线
+// vec.x, vec.y, vec.z, vec.w = 4 个连续元素
+
+// Shared Memory 物理总线宽度 = 128-bit
+// float load = 带宽浪费 75%
+// float4 load = 带宽 100% 利用</code></pre>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="chapter-num">第八章</div>
+  <h2>本周验证清单 (Warp Tiling 部分)</h2>
+  <ul style="font-size:0.78em; line-height:2.2;">
+    <li>画出 Block Tile → Warp Tile → Thread Tile 三层的数据流图，标出每一层数据在哪个物理存储上</li>
+    <li>用 <code>--ptxas-options=-v</code> 查看 register 用量，确认没有 spill stores</li>
+    <li>对比 float vs float4 的 shared memory load 事务数 (ncu 中 <code>l1tex__t_sectors_pipe_lsu_mem_shared_op_ld.sum</code>)</li>
+    <li>在同一张图上画出 naive → block tiled → warp tiled 三条 GFLOPS 曲线的对比</li>
+  </ul>
+</section>
+
+<!-- ════════════════════════════════════════════════════════════
+     学完自测 + 扩展路线 + References
+     ════════════════════════════════════════════════════════════ -->
+<section>
+  <h2>学完自测 — 7 个问题</h2>
+  <ol style="font-size:0.74em; line-height:2;">
+    <li><strong>口算访存量：</strong>M=N=K=2048, TILE=32。Naive 下每个 A 元素被读了多少次？Tiled 下从 Global Memory 被读了多少次？省了多少？</li>
+    <li><strong>解释 __syncthreads()：</strong>为什么需要两个？分别保护的是什么？去掉其中一个分别会出什么错误？</li>
+    <li><strong>解释协作加载：</strong>为什么 1024 个线程各搬一个元素比 1 个线程搬 1024 个元素快？</li>
+    <li><strong>解释 Tile Size 约束：</strong>TILE=4 为什么慢？TILE=128 为什么不行？受什么资源限制？</li>
+    <li><strong>解释 Occupancy：</strong>Shared Memory 用量和 Occupancy 是什么关系？Occupancy 下降为什么导致性能下降？</li>
+    <li><strong>解释 Profiling：</strong><code>dram__bytes_read.sum</code> 在 naive vs tiled 差了多少倍？为什么不是正好等于 TILE_SIZE？</li>
+    <li><strong>串联知识：</strong>FlashAttention 的 tiling 和 GEMM tiling 的相同点和不同点各是什么？</li>
+  </ol>
+</section>
+
+<section>
+  <h2>后续路线 — 四条进阶方向</h2>
+  <div style="display:flex; gap:16px; margin-top:12px;">
+    <div style="flex:1; border:1px solid var(--border); border-radius:5px; padding:14px;">
+      <div style="font-weight:600; font-size:0.82em;">A — Warp Tiling 完善 <span class="tag" style="font-size:0.62em;">最优先</span></div>
+      <p style="font-size:0.65em; color:var(--fg-secondary); margin-top:5px;">float4 向量化 Shared Load；对比 block-only vs warp tiling 的 ncu metrics。理论再快 ~20×。</p>
+      <p style="font-size:0.6em; color:var(--fg-muted); margin-top:4px;">2-3 天</p>
+    </div>
+    <div style="flex:1; border:1px solid var(--border); border-radius:5px; padding:14px;">
+      <div style="font-weight:600; font-size:0.82em;">B — Tensor Core (WMMA)</div>
+      <p style="font-size:0.65em; color:var(--fg-secondary); margin-top:5px;">从 CUDA Core (15 TFLOPS) 切到 Tensor Core (60-120 TFLOPS)。~20 行代码替换。</p>
+      <p style="font-size:0.6em; color:var(--fg-muted); margin-top:4px;">2-3 天</p>
+    </div>
+    <div style="flex:1; border:1px solid var(--border); border-radius:5px; padding:14px;">
+      <div style="font-weight:600; font-size:0.82em;">C — Double Buffering</div>
+      <p style="font-size:0.65em; color:var(--fg-secondary); margin-top:5px;">cp.async + 双缓冲，计算与访存重叠。消灭 barrier 后的 SM 空闲。</p>
+      <p style="font-size:0.6em; color:var(--fg-muted); margin-top:4px;">1-2 天</p>
+    </div>
+    <div style="flex:1; border:1px solid var(--border); border-radius:5px; padding:14px;">
+      <div style="font-weight:600; font-size:0.82em;">D — CUTLASS 源码</div>
+      <p style="font-size:0.65em; color:var(--fg-secondary); margin-top:5px;">ThreadblockTile / WarpTile / ThreadTile 模板参数 → 硬件行为映射。</p>
+      <p style="font-size:0.6em; color:var(--fg-muted); margin-top:4px;">2-3 天</p>
+    </div>
+  </div>
+  <p class="text-small text-muted mt-12" style="text-align:center;">A 可以和 Week 4 并行推进 &nbsp;|&nbsp; B/C 独立不冲突 &nbsp;|&nbsp; D 需要 A+B 的前置经验</p>
+</section>
+
+<section>
+  <h2>References</h2>
+  <table class="clean mt-6" style="font-size:0.7em;">
+    <tr><th>#</th><th>Material</th><th>What to Read</th></tr>
+    <tr><td>1</td><td>An Even Easier Introduction to CUDA</td><td>线程模型、内存模型、&lt;&lt;&lt;&gt;&gt;&gt; 语法</td></tr>
+    <tr><td>2</td><td>How to Optimize CUDA Matmul — Simon Boehm</td><td>Naive → Tiled 逐步优化，每步有代码和性能数据</td></tr>
+    <tr><td>3</td><td>PMPP Ch.5-6</td><td>5.4 Tiled Matrix Multiplication 推导；Performance Considerations</td></tr>
+    <tr><td>4</td><td>CUTLASS Efficient GEMM Part 1-3</td><td>三层 tiling 的抽象层次和命名约定</td></tr>
+    <tr><td>5</td><td>CUDA C++ Programming Guide — Shared Memory</td><td>Bank 结构、Synchronization 语义</td></tr>
+    <tr><td>6</td><td>Roofline Model (Williams et al., 2009)</td><td>算术强度定义、Memory-bound vs Compute-bound 判断</td></tr>
+  </table>
+</section>
+
+<section class="title-slide">
+  <h1 style="font-size:1.8em; font-weight:400; color:var(--fg-muted);">Thank You</h1>
+</section>
+
+</div></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/5.0.4/reveal.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/5.0.4/plugin/highlight/highlight.min.js"></script>
+<script>
+Reveal.initialize({
+  hash: true, width: 1280, height: 800, margin: 0.04,
+  minScale: 0.2, maxScale: 2.0,
+  transition: 'none', backgroundTransition: 'none',
+  plugins: [ RevealHighlight ],
+  highlight: { highlightOnLoad: true, escapeHTML: false },
+});
+</script>
+</body>
+</html>

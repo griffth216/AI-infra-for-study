@@ -1,0 +1,1125 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GPU 存储层次：从硬件到算法的学习汇报 — Week 2</title>
+<style>
+  /* ============================================================
+     Academic Print Design — Reset & Base
+     ============================================================ */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --ink:       #2b2b2b;
+    --ink-light: #444;
+    --ink-muted: #666;
+    --accent:    #1d3557;
+    --accent-2:  #457b9d;
+    --warn:      #c14b3b;
+    --green:     #2a7d4f;
+    --bg:        #fcfcfc;
+    --card:      #ffffff;
+    --border:    #d8d8d8;
+    --hairline:  #ececec;
+    --table-thick: #1d3557;
+    --table-thin:  #d0d0d0;
+    --serif:  "Songti SC", "SimSun", "Noto Serif CJK SC", Georgia, "Times New Roman", serif;
+    --sans:   "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", Helvetica, Arial, sans-serif;
+    --mono:   "SF Mono", "Cascadia Code", "Consolas", "Courier New", monospace;
+  }
+
+  html { font-size: 20px; }
+  body {
+    font-family: var(--sans);
+    background: var(--bg);
+    color: var(--ink);
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+    overflow: hidden;
+    height: 100vh;
+  }
+
+  /* ============================================================
+     Slide — full viewport, stretch to edges, no max-width
+     ============================================================ */
+  .slide {
+    display: none;
+    width: 100%;
+    height: 100vh;
+    padding: 1.5rem 2.5rem 1.5rem;
+    background: var(--bg);
+    overflow-y: auto;
+    flex-direction: column;
+    justify-content: flex-start;
+    align-items: stretch;
+  }
+  .slide.active { display: flex; }
+  .slide-inner {
+    width: 100%;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ============================================================
+     Title Zone — bold serif heading + full-width divider line
+     ============================================================ */
+  .slide-title {
+    font-family: var(--serif);
+    font-size: 2.6rem;
+    font-weight: 900;
+    color: var(--accent);
+    letter-spacing: 0.02em;
+    line-height: 1.2;
+    margin-bottom: 0.2rem;
+    text-align: left;
+  }
+  .slide-subtitle {
+    font-family: var(--sans);
+    font-size: 0.95rem;
+    font-weight: 400;
+    color: var(--ink-muted);
+    margin-bottom: 1.5rem;
+    padding-bottom: 1rem;
+    border-bottom: 2px solid var(--border);
+    letter-spacing: 0.01em;
+    text-align: left;
+  }
+
+  .section-label {
+    font-family: var(--sans);
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--accent-2);
+    margin-bottom: 0.4rem;
+  }
+
+  /* ============================================================
+     Title Slide
+     ============================================================ */
+  .title-slide { text-align: left; }
+  .title-slide .main-title {
+    font-family: var(--serif);
+    font-size: 4rem;
+    font-weight: 900;
+    color: var(--accent);
+    letter-spacing: 0.03em;
+    line-height: 1.15;
+    margin-bottom: 0.6rem;
+  }
+  .title-slide .main-subtitle {
+    font-family: var(--sans);
+    font-size: 1.3rem;
+    font-weight: 400;
+    color: var(--accent-2);
+    letter-spacing: 0.02em;
+    margin-bottom: 2.5rem;
+  }
+  .title-meta {
+    font-family: var(--sans);
+    font-size: 0.85rem;
+    color: var(--ink-muted);
+    line-height: 1.8;
+  }
+  .title-divider {
+    width: 4rem;
+    height: 2px;
+    background: var(--accent);
+    margin: 0 0 2rem;
+  }
+
+  /* ============================================================
+     Layout — row / col system
+     ============================================================ */
+  .row { display: flex; gap: 1.8rem; }
+  .col { flex: 1; }
+  .col-2 { flex: 2; }
+  .col-wide { flex: 1.3; }
+  .col-narrow { flex: 0.7; }
+
+  /* ============================================================
+     Cards — three tiers
+     Tier 1: standard card (white + top accent bar)
+     Tier 2: emphasis card (left bar + tinted bg, for key conclusions)
+     Tier 3: stat card (no border, centered number, for data callouts)
+     ============================================================ */
+
+  /* Tier 1 — Standard card */
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    padding: 1.5rem 1.5rem;
+    margin-bottom: 1rem;
+  }
+  .card-top-accent { border-top: 3px solid var(--accent); }
+  .card-top-warn   { border-top: 3px solid var(--warn); }
+  .card-top-green  { border-top: 3px solid var(--green); }
+  .card-top-blue   { border-top: 3px solid var(--accent-2); }
+
+  .card-title {
+    font-family: var(--sans);
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--accent);
+    margin-bottom: 0.5rem;
+    letter-spacing: 0.01em;
+  }
+  .card-title-sm {
+    font-family: var(--sans);
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--ink);
+    margin-bottom: 0.3rem;
+  }
+  .card-body   { font-size: 0.9rem;  color: var(--ink-light); line-height: 1.65; }
+  .card-body-sm { font-size: 0.88rem; color: var(--ink-light); line-height: 1.6; }
+
+  /* Tier 2 — Emphasis box (left bar + tinted background) */
+  .note {
+    background: #f4f6f9;
+    border-left: 3px solid var(--accent);
+    padding: 1rem 1.4rem;
+    font-size: 0.95rem;
+    color: var(--ink-light);
+    line-height: 1.65;
+    margin-top: 0.8rem;
+    margin-bottom: 0.6rem;
+  }
+  .note-warn  { background: #fdf6f5; border-left-color: var(--warn); }
+  .note-green { background: #f5f9f7; border-left-color: var(--green); }
+  .note strong { color: var(--ink); }
+
+  /* Tier 3 — Stat callout (borderless, big number) */
+  .stat-group { display: flex; gap: 1.5rem; flex-wrap: wrap; justify-content: space-between; }
+  .stat {
+    text-align: center;
+    padding: 0.5rem 1rem;
+    flex: 1;
+    min-width: 8rem;
+  }
+  .stat-num {
+    font-family: var(--serif);
+    font-size: 3.2rem;
+    font-weight: 900;
+    color: var(--accent);
+    line-height: 1.1;
+  }
+  .stat-num.warn  { color: var(--warn); }
+  .stat-num.green { color: var(--green); }
+  .stat-label { font-size: 0.82rem; color: var(--ink-muted); margin-top: 0.15rem; font-weight: 600; }
+  .stat-sub   { font-size: 0.74rem; color: var(--ink-muted); margin-top: 0.1rem; }
+
+  /* ============================================================
+     Three-Line Table (学术三线表)
+     ============================================================ */
+  .tbl-wrap { overflow-x: auto; margin: 0.6rem 0 0.8rem; }
+  table.three-line {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.88rem;
+    font-family: var(--sans);
+  }
+  table.three-line thead { border-top: 2px solid var(--table-thick); }
+  table.three-line thead tr { border-bottom: 1px solid var(--table-thin); }
+  table.three-line tbody { border-bottom: 2px solid var(--table-thick); }
+  table.three-line th {
+    padding: 0.45rem 0.7rem;
+    text-align: left;
+    font-weight: 700;
+    color: var(--ink);
+    white-space: nowrap;
+  }
+  table.three-line td {
+    padding: 0.4rem 0.7rem;
+    color: var(--ink-light);
+    border: none;
+    vertical-align: top;
+    line-height: 1.5;
+  }
+  table.three-line tr.inner-line { border-bottom: 1px solid var(--hairline); }
+  table.three-line .mono { font-family: var(--mono); font-size: 0.78rem; }
+  table.three-line .em   { color: var(--accent); font-weight: 600; }
+
+  /* ============================================================
+     Pyramid — full-width layers
+     ============================================================ */
+  .pyramid { margin: 1.5rem 0 1rem; }
+  .pyramid-layer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 3rem;
+    margin-bottom: 0.3rem;
+    padding: 0 1.5rem;
+    background: var(--card);
+    border: 1px solid var(--border);
+    font-size: 0.88rem;
+  }
+  .pyramid-layer .layer-name {
+    font-family: var(--serif);
+    font-weight: 700;
+    color: var(--accent);
+    white-space: nowrap;
+    flex: 0 0 auto;
+    min-width: 8rem;
+  }
+  .pyramid-layer .layer-analogy {
+    font-size: 0.8rem;
+    color: var(--ink-muted);
+    font-style: italic;
+    flex: 1;
+    text-align: center;
+  }
+  .pyramid-layer .layer-spec {
+    font-size: 0.82rem;
+    color: var(--ink-light);
+    text-align: right;
+    white-space: nowrap;
+    flex: 0 0 auto;
+  }
+  .pyramid-arrow {
+    text-align: center;
+    font-size: 0.7rem;
+    color: var(--ink-muted);
+    margin: 0.2rem 0;
+  }
+
+  /* ============================================================
+     Block Size Cards
+     ============================================================ */
+  .bs-grid { display: flex; gap: 1.2rem; margin: 1rem 0; }
+  .bs-card {
+    flex: 1;
+    background: var(--card);
+    border: 1px solid var(--border);
+    padding: 1.2rem 1.4rem;
+  }
+  .bs-card .bs-label { font-family: var(--serif); font-size: 1.1rem; font-weight: 700; margin-bottom: 0.5rem; }
+  .bs-card .bs-code {
+    font-family: var(--mono);
+    font-size: 0.76rem;
+    color: var(--ink-light);
+    line-height: 1.5;
+    margin-bottom: 0.5rem;
+    white-space: pre-line;
+  }
+  .bs-card .bs-total { font-family: var(--serif); font-size: 1.4rem; font-weight: 700; color: var(--ink); margin-bottom: 0.2rem; }
+  .bs-card .bs-verdict { font-size: 0.8rem; font-weight: 600; }
+  .bs-pass { border-top: 3px solid var(--green); }
+  .bs-warn { border-top: 3px solid #b85c3a; }
+  .bs-fail { border-top: 3px solid var(--warn); }
+  .bs-pass .bs-label { color: var(--green); }
+  .bs-warn .bs-label { color: #b85c3a; }
+  .bs-fail .bs-label { color: var(--warn); }
+  .bs-pass .bs-verdict { color: var(--green); }
+  .bs-warn .bs-verdict { color: #b85c3a; }
+  .bs-fail .bs-verdict { color: var(--warn); }
+
+  /* ============================================================
+     Agenda grid
+     ============================================================ */
+  .agenda-grid { display: flex; gap: 1rem; }
+  .agenda-item {
+    flex: 1;
+    background: var(--card);
+    border: 1px solid var(--border);
+    padding: 1.5rem 1.2rem;
+    text-align: left;
+  }
+  .agenda-num {
+    font-family: var(--serif);
+    font-size: 2.6rem;
+    font-weight: 900;
+    color: var(--accent);
+    line-height: 1;
+    margin-bottom: 0.5rem;
+  }
+  .agenda-title { font-family: var(--serif); font-size: 1rem; font-weight: 700; color: var(--ink); margin-bottom: 0.35rem; }
+  .agenda-desc { font-size: 0.86rem; color: var(--ink-muted); line-height: 1.55; margin-bottom: 0.6rem; }
+  .agenda-time {
+    display: inline-block;
+    font-size: 0.7rem;
+    color: var(--accent-2);
+    border: 1px solid var(--border);
+    padding: 0.15rem 0.55rem;
+  }
+
+  /* ============================================================
+     Before / After comparison
+     ============================================================ */
+  .compare { display: flex; gap: 1.4rem; }
+  .compare-col { flex: 1; }
+  .compare-col .card { height: 100%; }
+  .compare-title { font-family: var(--serif); font-size: 1.15rem; font-weight: 700; margin-bottom: 0.6rem; }
+  .compare-title.bad  { color: var(--warn); }
+  .compare-title.good { color: var(--green); }
+  .compare-step { font-size: 0.9rem; color: var(--ink-light); line-height: 1.7; padding-left: 0.2rem; }
+  .compare-conclusion { font-family: var(--sans); font-weight: 700; font-size: 0.86rem; margin-top: 0.5rem; }
+
+  /* Code-HW table helpers */
+  .map-code { font-family: var(--mono); font-size: 0.78rem; color: var(--accent); }
+  .map-hw   { font-size: 0.82rem; color: var(--accent-2); font-weight: 600; }
+  .map-desc { font-size: 0.84rem; color: var(--ink-light); }
+
+  /* ============================================================
+     Page indicator
+     ============================================================ */
+  .page-dots {
+    position: fixed;
+    bottom: 1rem;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 0.4rem;
+    z-index: 10;
+  }
+  .page-dot {
+    width: 6px;
+    height: 6px;
+    background: var(--border);
+  }
+  .page-dot.active { background: var(--accent); width: 18px; }
+
+  /* ============================================================
+     Print
+     ============================================================ */
+  @media print {
+    body { overflow: auto; }
+    .page-dots { display: none; }
+    .slide { display: block !important; height: auto; page-break-after: always; padding: 1.8rem 2rem; overflow: visible; }
+  }
+
+  /* ============================================================
+     Responsive
+     ============================================================ */
+  @media (max-width: 800px) {
+    .slide { padding: 1.5rem 1rem; }
+    .slide-title { font-size: 1.7rem; }
+    .row, .compare, .bs-grid, .agenda-grid { flex-direction: column; gap: 0.7rem; }
+    .title-slide .main-title { font-size: 2.2rem; }
+    .pyramid-layer { height: auto; flex-wrap: wrap; padding: 0.5rem 0.8rem; gap: 0.3rem; }
+    .pyramid-layer .layer-analogy { flex: 1 1 100%; text-align: left; }
+    .stat-num { font-size: 2.2rem; }
+  }
+  </style>
+</head>
+<body>
+
+<!-- ============================================================
+     SLIDE 1 — Title
+     ============================================================ -->
+<div class="slide active" id="s1">
+  <div class="slide-inner title-slide">
+    <div class="section-label">AI Infra 学习计划 · Week 2</div>
+    <div class="title-divider"></div>
+    <div class="main-title">GPU 存储层次</div>
+    <div class="main-subtitle">从硬件到算法的学习汇报</div>
+    <div class="title-meta">
+      初学者学习汇报 &nbsp;·&nbsp; 向导师展示"学了什么 → 发现什么问题 → 怎么解决 → 还存在什么问题"<br>
+      2026 年 6 月 &nbsp;·&nbsp; AI Infra Study Group
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+
+<!-- ============================================================
+     SLIDE 3 — 四层金字塔
+     ============================================================ -->
+<div class="slide" id="s3">
+  <div class="slide-inner">
+    <div class="slide-title">GPU 存储系统：四层金字塔</div>
+    <div class="slide-subtitle">GPU 的存储不是一个平面，而是从上到下四层结构。越上层越快但越小，越下层越大但越慢 — 这是物理约束，不是设计偏好。</div>
+
+    <div class="row" style="margin-bottom:0.8rem;">
+      <div class="col">
+        <div class="card card-top-accent">
+          <div class="card-title">① 寄存器（Register File）</div>
+          <div class="card-body">
+            每 SM <strong>256 KB</strong>，由 65,536 个 32-bit 寄存器组成。位于 ALU 旁边，<strong>~0 cycle</strong> 延迟。线程私有，编译器自动分配。寄存器溢出（Register Spilling）到 HBM 是性能杀手。每线程最多 255 个寄存器，寄存器用量直接决定 SM 占用率（Occupancy）。
+          </div>
+        </div>
+      </div>
+      <div class="col">
+        <div class="card card-top-accent">
+          <div class="card-title">② 共享内存 / SRAM</div>
+          <div class="card-body">
+            每 SM <strong>192 KB</strong>（A100），与 L1 Cache 共享同一块片上 SRAM 物理资源，延迟 <strong>~20 cycles</strong>。由程序员通过 <code style="font-family:var(--mono);font-size:0.82rem;">__shared__</code> 手动管理。核心用途：分块计算（Tiling）减少 HBM 访问、线程间通信、数据重组。硬件上分为 32 个 Bank，需小心 Bank Conflict。
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="row" style="margin-bottom:0.8rem;">
+      <div class="col">
+        <div class="card card-top-accent">
+          <div class="card-title">③ L2 Cache</div>
+          <div class="card-body">
+            全卡 <strong>40 MB</strong>（A100），所有 SM 共享，延迟 <strong>~200 cycles</strong>。由硬件自动管理（LRU 替换策略），程序员不可直接控制。A100 支持 L2 Residency Control，可将部分数据永久锁定在 L2 中。带宽 ~4 TB/s，是 HBM 的 2 倍。PagedAttention 的分块设计有利于提升 L2 命中率。
+          </div>
+        </div>
+      </div>
+      <div class="col">
+        <div class="card card-top-accent">
+          <div class="card-title">④ HBM / 显存</div>
+          <div class="card-body">
+            全卡 <strong>80 GB</strong>（A100），基于 3D 堆叠 DRAM + TSV（硅通孔）技术，延迟 <strong>~600 cycles</strong>。位宽 1024-bit（HBM3e），靠增加并行通道而非提高频率来提升带宽。存放全部模型参数、中间激活值和 KV Cache。从 A100 的 2.0 TB/s 到 B200 的 8.0 TB/s，带宽每代提升 ~50–70%。
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="note" style="margin-top:0.5rem;">
+      <strong>物理约束：</strong>SRAM 一个 bit 需要 6 个晶体管（6T cell），芯片面积是 DRAM（1T1C cell）的 <strong>5–7 倍</strong>。如果把 80 GB HBM 全换成片上 SRAM，芯片面积将达到 ~16,640 mm²，一片 12 寸晶圆只能切 3–4 颗。快和大在硅基芯片上无法兼得，<strong>必须分层</strong>。
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     SLIDE 4 — HBM vs GDDR
+     ============================================================ -->
+<div class="slide" id="s4">
+  <div class="slide-inner">
+    <div class="slide-title">HBM：靠「加车道」提速，而非「踩油门」</div>
+    <div class="slide-subtitle">传统 GDDR 与 HBM 的架构对比 — 平房 vs 摩天大楼</div>
+    <div class="compare">
+      <div class="compare-col">
+        <div class="card card-top-warn">
+          <div class="compare-title bad">GDDR — 传统显存</div>
+          <div class="card-body-sm" style="margin-bottom:0.5rem; font-style:italic; color:var(--ink-muted);">"平房"：内存颗粒平铺在 PCB 板上</div>
+          <table class="three-line" style="font-size:0.8rem;">
+            <tbody>
+              <tr><td style="font-weight:700; width:5rem;">位宽</td><td>32–64 bit</td></tr>
+              <tr><td style="font-weight:700;">提速方式</td><td>提高频率 → 功耗爆炸</td></tr>
+              <tr><td style="font-weight:700;">典型带宽</td><td>272 GB/s（RTX 4060）</td></tr>
+              <tr><td style="font-weight:700;">价格</td><td>消费级，整机 ~¥7,000</td></tr>
+              <tr><td style="font-weight:700;">封装</td><td>PCB 平面布局，颗粒散布在 GPU 周围</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="compare-col">
+        <div class="card card-top-accent">
+          <div class="compare-title" style="color:var(--accent);">HBM — 高带宽内存</div>
+          <div class="card-body-sm" style="margin-bottom:0.5rem; font-style:italic; color:var(--ink-muted);">"摩天大楼"：多层 DRAM 垂直堆叠 + TSV 贯通</div>
+          <table class="three-line" style="font-size:0.8rem;">
+            <tbody>
+              <tr><td style="font-weight:700; width:5rem;">位宽</td><td>1024 bit（HBM3e），HBM4 → 2048 bit</td></tr>
+              <tr><td style="font-weight:700;">提速方式</td><td>增加并行通道，低频低压</td></tr>
+              <tr><td style="font-weight:700;">典型带宽</td><td>2.0 TB/s（A100）→ 8.0 TB/s（B200）</td></tr>
+              <tr><td style="font-weight:700;">价格</td><td>数据中心级，单卡 ~¥100,000</td></tr>
+              <tr><td style="font-weight:700;">封装</td><td>3D 堆叠 + 硅中介层，TSV 微米级铜柱互连</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="note" style="margin-top:1.2rem;">
+      <strong>关键洞察：</strong>HBM 不靠提高频率，靠增加并行通道。代价是贵 — 数据中心卡用 HBM（单卡十几万），消费级用 GDDR（单卡几千块）。但"内存墙"（算力增速远超带宽增速，计算单元大量时间空等数据）只是被推远了，核心矛盾并未消失。
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     SLIDE 5 — SRAM 结构原理：Bank 的组织方式
+     ============================================================ -->
+<div class="slide" id="s5">
+  <div class="slide-inner">
+    <div class="slide-title">SRAM 结构原理：为什么切成 32 个 Bank？</div>
+    <div class="slide-subtitle">物理上 SRAM 与 L1 Cache 共享同一块片上 SRAM（A100: 192 KB/SM），程序员可配置分配比例</div>
+
+    <div class="row">
+      <div class="col">
+        <div class="card card-top-accent">
+          <div class="card-title">为什么要切成 Bank？</div>
+          <div class="card-body">
+            SRAM 使用 6T SRAM cell，每周期只能提供 <strong>一个读写端口</strong>。如果整块 SRAM 是一个整体，一个 Warp 的 32 个线程只能串行访问 → 32 个周期才能服务完一次请求。<br><br>
+            解决方案：将 SRAM 硬件上切分为 <strong>32 个等大的 Bank</strong>，每个 Bank 有独立的读写端口。32 个线程同时访问 32 个不同 Bank → <strong>1 个周期</strong>全部完成，吞吐量 ×32。
+          </div>
+        </div>
+      </div>
+      <div class="col">
+        <div class="card card-top-accent">
+          <div class="card-title">Bank 编址方式</div>
+          <div class="card-body">
+            以 <strong>4 字节（32-bit word）</strong> 为单位交错编址：<br><br>
+            <code style="font-family:var(--mono);font-size:0.82rem;">Bank = (byte_addr / 4) % 32</code><br><br>
+            地址 0–3 (word 0) → Bank 0<br>
+            地址 4–7 (word 1) → Bank 1<br>
+            …<br>
+            地址 124–127 (word 31) → Bank 31<br>
+            地址 128–131 (word 32) → <strong>Bank 0</strong>（循环回来）
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card card-top-warn" style="margin-top:0.8rem;">
+      <div class="card-title" style="color:var(--warn);">Bank Conflict — 当多个线程撞上同一个 Bank</div>
+      <div class="row" style="margin-top:0.5rem;">
+        <div class="col">
+          <div class="card-body" style="margin-bottom:0.4rem;">
+            <strong>定义：</strong>同一 Warp 内，n 个线程访问<strong>同一 Bank 的不同地址</strong> → 硬件将这 n 个请求<strong>串行化</strong>，需要 n 个周期完成。
+          </div>
+          <div class="card-body" style="margin-bottom:0.4rem;">
+            <strong>特例 — 广播（不冲突）：</strong>多个线程访问<strong>完全相同的地址</strong> → 硬件检测到后广播给所有线程，<strong>1 个周期</strong>完成。
+          </div>
+          <div class="card-body">
+            <strong>通用判定公式：</strong><code style="font-family:var(--mono);">gcd(32, stride) > 1</code> → 有 Bank Conflict<br>
+            只有 stride 为<strong>奇数</strong>时（gcd=1）一定无冲突。
+          </div>
+        </div>
+        <div class="col">
+          <div style="font-family:var(--mono);font-size:0.78rem;color:var(--ink-light);line-height:1.6;">
+            <strong>stride = 1（连续）→ 无冲突</strong><br>
+            T0→Bank0, T1→Bank1, …, T31→Bank31<br>
+            <strong style="color:var(--warn);">stride = 2 → 2 路冲突</strong><br>
+            T0→Bank0, T1→Bank2, …<br>
+            T16→word32→Bank0 与 T0 冲突！<br>
+            <strong style="color:var(--warn);">stride = 32 → 32 路冲突（最坏）</strong><br>
+            全部 32 线程命中 Bank 0
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card card-top-green">
+      <div class="card-title" style="color:var(--green);">Padding 解法 — 数学原理与二维数组的 Bank 映射</div>
+
+      <div class="card-body-sm" style="margin-bottom:0.6rem;">
+        <strong>二维数组的行优先存储：</strong>C/C++ 中 <code style="font-family:var(--mono);">tile[R][C]</code> 在内存中按行连续排列。元素 <code style="font-family:var(--mono);">tile[row][col]</code> 的线性地址为：<br>
+        <code style="font-family:var(--mono);font-size:0.9rem;">word_index = row × C + col</code> → <code style="font-family:var(--mono);font-size:0.9rem;">Bank = (row × C + col) % 32</code>
+      </div>
+
+      <div class="row" style="margin-bottom:0.5rem;">
+        <div class="col">
+          <div class="card-body-sm" style="padding:0.5rem; background:#fdf6f5; border-left:2px solid var(--warn);">
+            <strong style="color:var(--warn);">不 Padding：C = 32</strong><br>
+            <code style="font-family:var(--mono);font-size:0.82rem;">Bank = (row × 32 + col) % 32 = col % 32</code><br>
+            → Bank 号<strong>与 row 无关</strong>，只取决于 col。所有 32 行的同一列全部命中同一个 Bank → <strong>32 路冲突</strong>。
+          </div>
+        </div>
+        <div class="col">
+          <div class="card-body-sm" style="padding:0.5rem; background:#f5f9f7; border-left:2px solid var(--green);">
+            <strong style="color:var(--green);">Padding：C = 32 + 1 = 33</strong><br>
+            <code style="font-family:var(--mono);font-size:0.82rem;">Bank = (row × 33 + col) % 32</code><br>
+            ∵ <code style="font-family:var(--mono);font-size:0.82rem;">33 ≡ 1 (mod 32)</code> ∴ <code style="font-family:var(--mono);font-size:0.82rem;">row × 33 ≡ row (mod 32)</code><br>
+            → <code style="font-family:var(--mono);font-size:0.82rem;">Bank = (row + col) % 32</code> <strong>Bank 号随行号线性偏移</strong>。
+          </div>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="col" style="flex:1.1;">
+          <div class="card-body-sm">
+            <strong>为什么能消除冲突？</strong>列访问时 col 固定，Bank = (row + col) % 32。row 从 0 递增到 31，Bank 号依次取 col, col+1, col+2, …, col+31 (mod 32) — <strong>恰好遍历全部 32 个 Bank</strong>，每个线程命中不同 Bank，<strong>零冲突</strong>。<br><br>
+            <strong>代价：</strong>每行浪费 1 个元素（4 字节），32 行共浪费 128 字节。换来 32 路冲突 → 1 路（无冲突），性能改善 <strong>5%–35%</strong>。<br><br>
+            <strong>核心技巧：</strong>选择 <code style="font-family:var(--mono);">C</code> 使得 <code style="font-family:var(--mono);">gcd(C, 32) = 1</code>（互质）。33 与 32 互质，同理 31、35、37 等奇数均可。33 最常用是因为只浪费 1/32 ≈ 3% 的空间。
+          </div>
+        </div>
+        <div class="col" style="flex:0.7;">
+          <table class="three-line" style="font-size:0.72rem;">
+            <thead><tr><th>row</th><th>word = row×33+col</th><th>Bank = word%32</th></tr></thead>
+            <tbody>
+              <tr><td>0</td><td>0</td><td>0</td></tr>
+              <tr><td>1</td><td>33</td><td>1</td></tr>
+              <tr><td>2</td><td>66</td><td>2</td></tr>
+              <tr><td>3</td><td>99</td><td>3</td></tr>
+              <tr><td>…</td><td>…</td><td>…</td></tr>
+              <tr><td>15</td><td>495</td><td>15</td></tr>
+              <tr><td>…</td><td>…</td><td>…</td></tr>
+              <tr><td>31</td><td>1023</td><td>31</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+SLIDE 6 — Tiling：分块计算
+     ============================================================ -->
+<div class="slide" id="s6">
+  <div class="slide-inner">
+    <div class="slide-title">SRAM 应用一：分块计算（Tiling）</div>
+    <div class="slide-subtitle">SRAM 装不下整个矩阵 → 切成 Tile 分批算 → 每个元素只从 HBM 读一次</div>
+    <div class="card card-top-warn" style="margin-bottom:0;">
+      <div class="card-title" style="color:var(--warn);">问题：数据复用被 HBM 带宽吞掉了</div>
+      <div class="card-body">
+        矩阵乘 C[M,N] = A[M,K] × B[K,N]（M=N=K=4096）。<strong>A 的同一行被 N 个线程各读一次</strong>，B 的同一列被 M 个线程各读一次。每个 FP16 元素 2 字节，A 被读 N 次、B 被读 M 次 → 总共 ~4096³ × 2 ≈ <strong>~136 GB</strong> HBM 流量。计算量仅 ~137 GFLOPS → Arithmetic Intensity ≈ 1 → <strong>严重 Memory-bound</strong>。99.8% 的时间计算单元在等数据。
+      </div>
+    </div>
+    <div style="text-align:center; color:var(--accent); font-family:var(--serif); font-size:1.2rem; font-weight:900; margin:0.1rem 0;">↓ SRAM 解决方案 ↓</div>
+    <div class="card card-top-green" style="margin-bottom:0.5rem;">
+      <div class="card-title" style="color:var(--green);">解决：Tile = 线程共享的工作台，每个元素只搬一次</div>
+      <div class="card-body">
+        将 A、B 切成 Tile（如 32×32）。Block 内所有线程协作把 A 的当前 Tile 从 HBM 搬进 SRAM，同样搬 B 的 Tile。在 SRAM 上完成部分积后循环到下一个 Tile。<strong>A 的每个元素只从 HBM 读 1 次</strong>（而非 N/32 次），同一 Block 线程通过 SRAM 共享。HBM 流量缩减 <strong>30–100×</strong>，Arithmetic Intensity 从 ~1 升至 ~30+，从 Memory-bound 转为 Compute-bound。
+      </div>
+    </div>
+    <div class="note" style="margin-top:0;">
+      <strong>FlashAttention 就是 Tiling：</strong>block_size 即 Tile 尺寸。Q 块锁定在 SRAM，内层循环换入新 K、V 块覆盖同一块 SRAM（"阅后即焚"），HBM 搬运从 O(N²) 降到 O(N)。
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     SLIDE 7 — 线程间通信 + 同步
+     ============================================================ -->
+<div class="slide" id="s7">
+  <div class="slide-inner">
+    <div class="slide-title">SRAM 应用二：线程间通信 + 同步</div>
+    <div class="slide-subtitle">线程的中间结果互相依赖 → 需要共享空间交换数据 → SRAM 是唯一低延迟选择</div>
+    <div class="card card-top-warn" style="margin-bottom:0;">
+      <div class="card-title" style="color:var(--warn);">问题：寄存器私有、HBM 太慢，线程间无法高效共享中间结果</div>
+      <div class="card-body">
+        并行归约（Parallel Reduction）：Block 内 256 线程各自算局部和，然后两两合并（256→128→64→…→2→1）。<strong>每一轮合并</strong>，线程 A 必须读到线程 B 刚算出的值。寄存器是<strong>线程私有</strong>的（A 看不到 B 的寄存器），HBM 延迟 600 cycles 太慢。如果走 HBM，每一步归约等 600 cycles → 8 轮归约 = 4800 cycles → 归约成为整个算子的瓶颈。
+      </div>
+    </div>
+    <div style="text-align:center; color:var(--accent); font-family:var(--serif); font-size:1.2rem; font-weight:900; margin:0.1rem 0;">↓ SRAM 解决方案 ↓</div>
+    <div class="card card-top-green" style="margin-bottom:0.5rem;">
+      <div class="card-title" style="color:var(--green);">解决：SRAM 当共享黑板 + __syncthreads() 当集合哨</div>
+      <div class="card-body">
+        ① 各线程将局部和写入 SRAM（<code style="font-family:var(--mono);font-size:0.8rem;">sdata[tid] = mySum</code>）<br>
+        ② <code style="font-family:var(--mono);font-size:0.8rem;">__syncthreads()</code> — 轻量级 Barrier（~20 cycles），确保所有线程写完才继续<br>
+        ③ 线程从 SRAM 读对方的局部和，相加，写回 SRAM<br>
+        ④ 重复 ②③ 直到归约完成<br>
+        <strong>效果：</strong>整个归约在 SRAM 内完成，HBM 零参与。__syncthreads() 保证"先写后读"的因果顺序，消除数据竞争。SRAM 20 cycles 延迟 vs HBM 600 cycles → 归约速度提升 30×。
+      </div>
+    </div>
+    <div class="note" style="margin-top:0;">
+      <strong>延伸：</strong>Softmax 的 max 统计、LayerNorm 的均值/方差、FlashAttention 中跨线程共享 Q 块 — 全部依赖这套 SRAM + Barrier 机制。
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     SLIDE 8 — 数据重组：挽救非合并访问
+     ============================================================ -->
+<div class="slide" id="s8">
+  <div class="slide-inner">
+    <div class="slide-title">SRAM 应用三：数据重组 — 挽救非合并访问</div>
+    <div class="slide-subtitle">HBM 只在连续访问时快 → 乱序数据先搬进 SRAM → 重排后再连续写回</div>
+    <div class="card card-top-warn" style="margin-bottom:0;">
+      <div class="card-title" style="color:var(--warn);">问题：HBM 要求连续访问，乱序数据性能暴跌至 1/32</div>
+      <div class="card-body">
+        HBM 的 Cache Line 为 <strong>128 字节</strong>（连续 32 个 FP32）。一个 Warp 的 32 个线程必须访问连续对齐的 128 字节，HBM 控制器才能用 <strong>1 个事务</strong>完成全部读取。如果线程访问分散地址（stride 访问、AoS 结构体、稀疏索引 gather）→ 每个线程触发独立 HBM 事务 → 32 个事务 → 带宽利用率仅 <strong>1/32</strong>。常见场景：AoS→SoA 转换、图像转置（行存→列读）、稀疏矩阵的 gather/scatter、图神经网络邻居采样。
+      </div>
+    </div>
+    <div style="text-align:center; color:var(--accent); font-family:var(--serif); font-size:1.2rem; font-weight:900; margin:0.1rem 0;">↓ SRAM 解决方案 ↓</div>
+    <div class="card card-top-green" style="margin-bottom:0.5rem;">
+      <div class="card-title" style="color:var(--green);">解决：三步"搬→排→写"，SRAM 作为排序缓冲区</div>
+      <div class="card-body">
+        SRAM 的随机访问不经过 L2/HBM 的 Cache Line 机制，stride 访问仅 20 cycles。<br>
+        <strong>① 搬进（Gather）—</strong> 线程用<strong>合并访问</strong>把一整段原始数据从 HBM 搬进 SRAM（连续读，带宽跑满）<br>
+        <strong>② 重排（Reorder）—</strong> 在 SRAM 内按目标顺序重新排列（20 cycles 随机访问，零 HBM 开销）<br>
+        <strong>③ 写回（Scatter）—</strong> 重排后的连续数据以<strong>合并访问</strong>写回 HBM<br>
+        <strong>本质：</strong>用 SRAM 的低延迟随机访问能力，吸收"非合并→合并"的格式转换成本，让 HBM 始终以峰值带宽读写。
+      </div>
+    </div>
+    <div class="note" style="margin-top:0;">
+      <strong>常见应用：</strong>图像转置预处理、AoS→SoA 布局转换、稀疏矩阵解压重排、FlashAttention 中 Kᵀ（转置）在 SRAM 内完成不触发 HBM 读写。
+    </div>
+  </div>
+</div>
+     SLIDE 6 — Hardware Trends
+     ============================================================ -->
+<div class="slide" id="s6">
+  <div class="slide-inner">
+    <div class="slide-title">硬件趋势：金字塔结构不变，比例在微调</div>
+    <div class="slide-subtitle">Ampere → Hopper → Blackwell 三代演进的关键指标</div>
+    <div class="stat-group" style="margin-bottom:1.2rem;">
+      <div class="stat">
+        <div class="stat-num green">+25–33%</div>
+        <div class="stat-label">SRAM 每代增长</div>
+        <div class="stat-sub">A100 192KB → H100 256KB/SM</div>
+      </div>
+      <div class="stat">
+        <div class="stat-num">×4</div>
+        <div class="stat-label">HBM 带宽增长</div>
+        <div class="stat-sub">A100 2TB/s → B200 8TB/s</div>
+      </div>
+      <div class="stat">
+        <div class="stat-num warn">×7.2</div>
+        <div class="stat-label">算力增长（同期）</div>
+        <div class="stat-sub">312 → 2,250 TFLOPS</div>
+      </div>
+      <div class="stat">
+        <div class="stat-num warn">×60</div>
+        <div class="stat-label">模型规模增长</div>
+        <div class="stat-sub">GPT-3 175B → GPT-4 ~1.7T</div>
+      </div>
+    </div>
+    <div class="tbl-wrap">
+      <table class="three-line">
+        <thead>
+          <tr><th></th><th>A100 (2020)</th><th>H100 (2022)</th><th>H200 (2024)</th><th>B200 (2025)</th></tr>
+        </thead>
+        <tbody>
+          <tr><td style="font-weight:700;">FP16 算力</td><td>312 TFLOPS</td><td>989 TFLOPS</td><td>989 TFLOPS</td><td>2,250 TFLOPS</td></tr>
+          <tr><td style="font-weight:700;">HBM 带宽</td><td>2.0 TB/s</td><td>3.35 TB/s</td><td>4.8 TB/s</td><td>8.0 TB/s</td></tr>
+          <tr class="inner-line"><td style="font-weight:700;">SRAM/SM</td><td>192 KB</td><td>256 KB</td><td>256 KB</td><td>~256 KB+</td></tr>
+          <tr><td style="font-weight:700;">算力/带宽比</td><td>156 FLOPS/Byte</td><td>295 FLOPS/Byte</td><td>206 FLOPS/Byte</td><td>281 FLOPS/Byte</td></tr>
+          <tr><td style="font-weight:700;">TDP</td><td>400W</td><td>700W</td><td>700W</td><td>1,000W</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note note-warn" style="margin-top:1.2rem;">
+      <strong>核心矛盾：</strong>算力涨了 7 倍，HBM 带宽涨了 4 倍，SRAM 每代只涨 25-33%。这个剪刀差不会消失——因为 SRAM 的 6T cell 占面积是 DRAM 的 5-7×，芯片总面积是硬约束。每一代 GPU 都在同样的物理约束下微调比例，金字塔的<strong>形状</strong>不会变。
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     SLIDE 7 — Memory Wall
+     ============================================================ -->
+<div class="slide" id="s7">
+  <div class="slide-inner">
+    <div class="slide-title">问题一：算力过剩，带宽不足 —「内存墙」</div>
+    <div class="slide-subtitle">以 RTX 4060 为例，量化算力与带宽的剪刀差</div>
+    <div class="row">
+      <div class="col" style="flex:0.9;">
+        <div class="stat" style="padding:1.8rem 0;">
+          <div class="stat-num warn" style="font-size:3.8rem;">889</div>
+          <div class="stat-label" style="font-size:1.05rem;">FLOPS / Byte</div>
+          <div class="stat-sub" style="font-size:0.85rem; max-width:20rem; margin:0.5rem auto 0;">
+            每从 HBM 读 1 个数字，需要做 889 次运算才能"喂饱"GPU
+          </div>
+        </div>
+      </div>
+      <div class="col" style="flex:1.1;">
+        <div class="card" style="padding:1.2rem 1.5rem;">
+          <div class="card-title-sm">推演过程</div>
+          <div class="card-body-sm" style="line-height:1.8;">
+            GPU 算力（FP16 Tensor Core）= <strong>121 TFLOPS</strong><br>
+            HBM 带宽（GDDR6）= <strong>272 GB/s</strong> = 2,720 亿字节/秒<br>
+            每个 FP16 占 2 字节 → 每秒最多搬 <strong>1,360 亿</strong>个数字<br><br>
+            121 万亿 ÷ 1,360 亿 ≈ <strong style="color:var(--warn);">889 FLOPS/Byte</strong><br><br>
+            但 LLM Decode 阶段算术强度仅 <strong style="color:var(--warn);">1–2 FLOPS/Byte</strong><br>
+            → GPU 实际算力利用率 <strong style="color:var(--warn);">&lt; 0.2%</strong>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="tbl-wrap" style="margin-top:1.2rem;">
+      <table class="three-line">
+        <thead><tr><th></th><th>RTX 4060</th><th>A100</th><th>H100</th><th>B200</th></tr></thead>
+        <tbody>
+          <tr><td style="font-weight:700;">算力 (TFLOPS)</td><td>121</td><td>312</td><td>989</td><td>2,250</td></tr>
+          <tr><td style="font-weight:700;">带宽 (TB/s)</td><td>0.27</td><td>2.0</td><td>3.35</td><td>8.0</td></tr>
+          <tr><td style="font-weight:700;">FLOPS/Byte</td><td>445</td><td>156</td><td>295</td><td>281</td></tr>
+          <tr><td style="font-weight:700; color:var(--warn);">Decode 实际需求</td><td style="color:var(--warn);">1–2</td><td style="color:var(--warn);">1–2</td><td style="color:var(--warn);">1–2</td><td style="color:var(--warn);">1–2</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note note-warn" style="margin-top:1.2rem;">
+      <strong>结论：</strong>这不是 RTX 4060 的问题 — A100、H100、B200 都面临同样的矛盾。算力涨得比带宽快，这个矛盾是 GPU 架构与生俱来的。Decode 阶段永远是 Memory-bound。
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     SLIDE 10 — FlashAttention Solution
+     ============================================================ -->
+<div class="slide" id="s10">
+  <div class="slide-inner">
+    <div class="slide-title">核心思路：既然搬数据是瓶颈，那就少搬</div>
+    <div class="slide-subtitle">FlashAttention 不是数学创新，是硬件调度创新 — "IO-Aware 算法"的含义</div>
+    <div class="compare">
+      <div class="compare-col">
+        <div class="card card-top-warn">
+          <div class="compare-title bad">✕ 标准 Attention</div>
+          <div class="compare-step">
+            ① 算出完整 N×N 注意力矩阵（~128 MB, N=4096）<br>
+            ② 整个存在 HBM 里<br>
+            ③ 读出来做 Softmax → 写回 HBM<br>
+            ④ 读出来乘 V → 写回 HBM<br>
+            ⑤ 每一步都是 HBM 级读写（600 cycles/次）
+          </div>
+          <div class="compare-conclusion" style="color:var(--warn);">HBM 读写量：O(N²) — 毁灭性的</div>
+        </div>
+      </div>
+      <div class="compare-col">
+        <div class="card card-top-green">
+          <div class="compare-title good">✓ FlashAttention</div>
+          <div class="compare-step">
+            ① 切成小块，每次只搬一小块到 SRAM<br>
+            ② 在 SRAM 里完成 Q×Kᵀ → Softmax → ×V<br>
+            ③ 算完直接扔，不写回 HBM<br>
+            ④ 只把很小的最终结果 O 写回 HBM<br>
+            ⑤ 大部分操作在 SRAM（20 cycles）完成
+          </div>
+          <div class="compare-conclusion" style="color:var(--green);">HBM 读写量：O(N) — 线性增长</div>
+        </div>
+      </div>
+    </div>
+    <div class="note" style="margin-top:1.4rem;">
+      <strong>关键洞察：</strong>计算量一点没少，SRAM 本身也没变快。<strong style="color:var(--accent);">快在哪里？快在少跑了仓库。</strong>这就是 "IO-Aware 算法" 的含义 — 在硬件不变的前提下，重新设计数据的搬运路线，让同样的计算少跑几十倍的 IO。这也是 AI Infra 这个方向的核心方法论：不是造更快的硬件，不是发明更"聪明"的模型结构，而是在理解硬件约束后，找到更优的计算编排方式。
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     SLIDE 8 — SRAM too small + Model growth
+     ============================================================ -->
+<div class="slide" id="s8">
+  <div class="slide-inner">
+    <div class="slide-title">问题二 & 三：SRAM 太小 + 显存涨不过模型</div>
+    <div class="slide-subtitle">三个问题的共同根源：数据和算力不在同一个地方</div>
+    <div class="row">
+      <div class="col">
+        <div class="card card-top-warn" style="margin-bottom:1rem;">
+          <div class="card-title" style="color:var(--warn);">问题二：SRAM 太小</div>
+          <div style="margin-bottom:0.5rem; text-align:center;">
+            <span style="font-family:var(--serif);font-size:1.1rem;font-weight:700;">A100 SRAM: ~20 MB</span><br>
+            <span style="font-family:var(--serif);font-size:1.1rem;font-weight:700;">A100 HBM: &nbsp;80 GB</span>
+          </div>
+          <div style="text-align:center; padding:0.6rem 0;">
+            <div style="font-family:var(--serif);font-size:3rem;font-weight:700;color:var(--warn);line-height:1.1;">0.025%</div>
+            <div style="font-size:0.82rem;color:var(--ink-muted);">工作台只有大仓库的 0.025%</div>
+          </div>
+          <div class="card-body-sm" style="text-align:center;">
+            但几乎所有计算都必须在工作台（SRAM）上完成 — 数据不搬上来就算不了。就像一个流水线工人，工作台只有巴掌大，原料全在几百米外的大仓库。
+          </div>
+        </div>
+      </div>
+      <div class="col">
+        <div class="card card-top-warn" style="margin-bottom:1rem;">
+          <div class="card-title" style="color:var(--warn);">问题三：HBM 容量涨不过模型规模</div>
+          <div class="tbl-wrap">
+            <table class="three-line">
+              <thead><tr><th>年份</th><th>GPU 显存</th><th>模型规模</th></tr></thead>
+              <tbody>
+                <tr><td>2020</td><td>A100: 80 GB</td><td>GPT-3: 175B 参数</td></tr>
+                <tr><td>2024</td><td>H200: 141 GB</td><td>GPT-4: ~1.7T 参数</td></tr>
+                <tr><td>2025</td><td>B200: 192 GB</td><td>下一代: 估计 10T+</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="row" style="gap:0.5rem;text-align:center;">
+            <div class="col">
+              <div style="font-family:var(--serif);font-size:2rem;font-weight:700;color:var(--accent-2);">×2.4</div>
+              <div style="font-size:0.78rem;color:var(--ink-muted);">显存增长</div>
+            </div>
+            <div class="col">
+              <div style="font-family:var(--serif);font-size:2rem;font-weight:700;color:var(--warn);">×60</div>
+              <div style="font-size:0.78rem;color:var(--ink-muted);">模型增长</div>
+            </div>
+          </div>
+          <div class="card-body-sm" style="text-align:center;margin-top:0.3rem;">
+            差距不是在缩小，是在<strong style="color:var(--warn);">拉大</strong>。
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="note note-warn">
+      <strong>共同根源：数据和算力不在同一个地方。</strong>数据在 HBM（慢但大），算力在 SM（快但只能用小数据）。搬数据的时间远大于算数据的时间。→ 核心优化思路：<strong>既然搬数据是瓶颈，那就少搬。</strong>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+
+<!-- ============================================================
+     SLIDE 11 — block_size Calculation
+     ============================================================ -->
+<div class="slide" id="s11">
+  <div class="slide-inner">
+    <div class="slide-title">block_size 怎么定的？— SRAM 容量的物理约束</div>
+    <div class="slide-subtitle">假设 d=64, FP16 精度，每次搬入 Q 块 + K 块 + V 块 + 临时 S 矩阵</div>
+    <div class="bs-grid">
+      <div class="bs-card bs-pass">
+        <div class="bs-label">block_size = 64 ✓</div>
+        <div class="bs-code">Q[64,64] = 8 KB
+K[64,64] = 8 KB
+V[64,64] = 8 KB
+S[64,64] = 8 KB
+状态     ≈ 0.5 KB</div>
+        <div class="bs-total">≈ 33 KB</div>
+        <div class="bs-verdict">&lt; 128 KB · 安全</div>
+      </div>
+      <div class="bs-card bs-warn">
+        <div class="bs-label">block_size = 128 ⚠</div>
+        <div class="bs-code">Q[128,64]  = 16 KB
+K[128,64]  = 16 KB
+V[128,64]  = 16 KB
+S[128,128] = 32 KB
+状态       ≈ 1 KB</div>
+        <div class="bs-total">≈ 81 KB</div>
+        <div class="bs-verdict">＞128 KB (RTX 4060) · 溢出<br>&lt;164 KB (A100) · 可用</div>
+      </div>
+      <div class="bs-card bs-fail">
+        <div class="bs-label">block_size = 256 ✗</div>
+        <div class="bs-code">Q[256,64]  = 32 KB
+K[256,64]  = 32 KB
+V[256,64]  = 32 KB
+S[256,256] = 128 KB
+状态       ≈ 2 KB</div>
+        <div class="bs-total">≈ 226 KB</div>
+        <div class="bs-verdict">＞任何 GPU 的 SRAM · 爆了</div>
+      </div>
+    </div>
+    <div class="note" style="margin-top:1.5rem;">
+      <strong>结论：</strong>block_size 被 SRAM 的物理容量卡死。这就是为什么 H100 的 SRAM 从 192 KB → 256 KB 后 FlashAttention 天然更快 — 分块可以设得更大，总搬运次数更少。也是为什么 IO 复杂度公式是 O(N²d²/M)：<strong>M 就是 SRAM 的大小。</strong>M 越大 → block_size 能设得越大 → HBM 访问次数越少 → 算子越快。
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     SLIDE 12 — Bottleneck 1: SRAM
+     ============================================================ -->
+<div class="slide" id="s12">
+  <div class="slide-inner">
+    <div class="slide-title">当前瓶颈一：SRAM 太小，卡住分块算法上限</div>
+    <div class="slide-subtitle">一个 SRAM bit = 6 个晶体管（6T cell），面积是 DRAM 的 5–7 倍，物理上限无法突破</div>
+    <div class="row">
+      <div class="col">
+        <div class="card card-top-warn" style="margin-bottom:0.8rem;">
+          <div class="card-title" style="color:var(--warn);">为什么是问题</div>
+          <div class="card-body">
+            · block_size 能设多大，完全取决于 SRAM 有多大<br>
+            · SRAM 每代只涨 25–33%（A100 192KB → H100 256KB/SM）<br>
+            · 根本原因：6T SRAM cell 占面积是 DRAM 的 5–7×<br>
+            · 芯片总面积是硬约束，只要还用硅和 6T SRAM cell 就不可能暴涨
+          </div>
+        </div>
+        <div class="card card-top-accent">
+          <div class="card-title">软件侧 — 编译器自动分块（Autotuning）</div>
+          <div class="card-body">
+            Triton 等编译器开始做自动搜索 — 程序员只写计算逻辑，编译器自动尝试不同 block_size，为每个 GPU 找到最优 SRAM 分配方案。解决了"每个 GPU 的 SRAM 大小不同，block_size 要手动重新算"的痛点。
+          </div>
+        </div>
+      </div>
+      <div class="col">
+        <div class="card card-top-accent">
+          <div class="card-title">硬件侧 — TMA（Tensor Memory Accelerator）</div>
+          <div class="card-body">
+            H100 新增的硬件单元，专门加速数据从 HBM 到 SRAM 的异步搬运。它不能增大 SRAM，但能让搬运更高效 — 原来需要线程们协作搬数据（占线程、占指令），TMA 在后台自己搬，线程腾出手来专心计算。<strong>FlashAttention-3 就是充分利用了 TMA 才实现了进一步加速。</strong>
+          </div>
+        </div>
+        <div class="note" style="margin-top:0.8rem;">
+          <strong>过渡：</strong>SRAM 的瓶颈导致了分块算法有理论上限。但这不是唯一的瓶颈 — HBM 带宽的不足同样致命，且矛盾在加剧。
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     SLIDE 13 — Bottleneck 2: HBM Bandwidth
+     ============================================================ -->
+<div class="slide" id="s13">
+  <div class="slide-inner">
+    <div class="slide-title">当前瓶颈二：HBM 带宽不够 — 三条优化路线并行</div>
+    <div class="slide-subtitle">Memory-bound 问题不会自动消失 — B200 算力涨 7×，带宽只涨 4×，矛盾加剧</div>
+    <div class="row">
+      <div class="col">
+        <div class="card card-top-accent" style="margin-bottom:1rem;">
+          <div class="card-title">路线一：HBM4（硬件侧微调比例）</div>
+          <div class="card-body">
+            <strong>方向：</strong>位宽从 1024-bit 翻倍到 2048-bit，单 stack 带宽 6–8+ TB/s，堆叠 16 层 DRAM。预计 2026–2027 年落地。<br><br>
+            <strong>挑战：</strong>功耗和散热是巨大瓶颈 — B200 已经 1,000W 了，HBM4 只会更高。每代给 30–50% 的提升，但无法从根本上解决矛盾。
+          </div>
+        </div>
+      </div>
+      <div class="col">
+        <div class="card card-top-accent" style="margin-bottom:1rem;">
+          <div class="card-title">路线二：近存计算 PIM（架构重构）</div>
+          <div class="card-body">
+            <strong>方向：</strong>在 HBM 堆栈内部加入简单处理单元，让一部分计算直接在内存侧完成，从根本上减少搬数据需求。三星、SK 海力士均在推进。<br><br>
+            <strong>挑战：</strong>成熟度不高，编程模型不完善。目前尚处于早期阶段。
+          </div>
+        </div>
+      </div>
+      <div class="col">
+        <div class="card card-top-green" style="margin-bottom:1rem;">
+          <div class="card-title" style="color:var(--green);">路线三：低精度计算（软件侧压缩）</div>
+          <div class="card-body">
+            <strong>方向：</strong>FP8 → FP4 → INT4，把数据精度砍一半，等效带宽翻倍。B200 已支持 FP4。这是<strong>短期见效最快、成本最低</strong>的方向。<br><br>
+            <strong>挑战：</strong>精度损失不可避免，不是所有任务都能用低精度。
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="note" style="margin-top:0.5rem;">
+      <strong>两条路并行：</strong><span style="color:var(--accent-2);font-weight:700;">硬件侧微调比例</span>（HBM4、更大 L2、近存计算）→ 每代 +30–50% 的提升；<span style="color:var(--green);font-weight:700;">软件侧重写 IO 模式</span>（FlashAttention、Triton 编译器、低精度计算）→ 一次可以给 10–100× 的提升。AI Infra 的价值就在这里 — 不是在硬件和算法之间做选择，而是理解两者的约束后找到让它们更好配合的方式。
+    </div>
+  </div>
+</div>
+
+
+<!-- ============================================================
+     Page Indicator
+     ============================================================ -->
+<div class="page-dots" id="pageDots"></div>
+
+<script>
+(function() {
+  const slides = document.querySelectorAll('.slide');
+  const dotsContainer = document.getElementById('pageDots');
+  let current = 0;
+  let wheelAccum = 0;
+  let wheelTimeout = null;
+
+  // Build dot indicators
+  slides.forEach(function(_, i) {
+    var dot = document.createElement('span');
+    dot.className = 'page-dot';
+    if (i === 0) dot.classList.add('active');
+    dotsContainer.appendChild(dot);
+  });
+
+  function showSlide(n) {
+    slides[current].classList.remove('active');
+    current = (n + slides.length) % slides.length;
+    slides[current].classList.add('active');
+
+    var dots = dotsContainer.querySelectorAll('.page-dot');
+    dots.forEach(function(d, i) { d.classList.toggle('active', i === current); });
+  }
+
+  function goSlide(delta) { showSlide(current + delta); }
+
+  // Keyboard
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === ' ') {
+      e.preventDefault(); goSlide(1);
+    } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+      e.preventDefault(); goSlide(-1);
+    } else if (e.key === 'Home') {
+      e.preventDefault(); showSlide(0);
+    } else if (e.key === 'End') {
+      e.preventDefault(); showSlide(slides.length - 1);
+    }
+  });
+
+  // Scroll wheel — debounced
+  document.addEventListener('wheel', function(e) {
+    e.preventDefault();
+    wheelAccum += e.deltaY;
+    if (wheelTimeout) return;
+    wheelTimeout = setTimeout(function() {
+      if (Math.abs(wheelAccum) > 40) {
+        goSlide(wheelAccum > 0 ? 1 : -1);
+      }
+      wheelAccum = 0;
+      wheelTimeout = null;
+    }, 150);
+  }, { passive: false });
+
+  // Touch swipe
+  var touchStartY = 0;
+  document.addEventListener('touchstart', function(e) {
+    touchStartY = e.touches[0].clientY;
+  }, { passive: true });
+  document.addEventListener('touchend', function(e) {
+    var dy = touchStartY - e.changedTouches[0].clientY;
+    if (Math.abs(dy) > 50) goSlide(dy > 0 ? 1 : -1);
+  });
+})();
+</script>
+
+</body>
+</html>

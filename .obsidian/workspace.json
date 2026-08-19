@@ -1,0 +1,237 @@
+{
+  "main": {
+    "id": "69e028c0b46b4f17",
+    "type": "split",
+    "children": [
+      {
+        "id": "6998e9640f31180f",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "ed3f8fc4ae6a3c33",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "notes/week4/笔记1.md",
+                "mode": "source",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "笔记1"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "vertical"
+  },
+  "left": {
+    "id": "03847bc7293adcb5",
+    "type": "split",
+    "children": [
+      {
+        "id": "2e186b761e72c88c",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "5c171860ce6836a8",
+            "type": "leaf",
+            "state": {
+              "type": "file-explorer",
+              "state": {
+                "sortOrder": "alphabetical",
+                "autoReveal": false,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-folder-closed",
+              "title": "文件列表"
+            }
+          },
+          {
+            "id": "e32679f6ebd52499",
+            "type": "leaf",
+            "state": {
+              "type": "search",
+              "state": {
+                "query": "",
+                "matchingCase": false,
+                "explainSearch": false,
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical"
+              },
+              "icon": "lucide-search",
+              "title": "搜索"
+            }
+          },
+          {
+            "id": "2f5242939b0ef47a",
+            "type": "leaf",
+            "state": {
+              "type": "bookmarks",
+              "state": {},
+              "icon": "lucide-bookmark",
+              "title": "书签"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300
+  },
+  "right": {
+    "id": "e7206e2ec78ec730",
+    "type": "split",
+    "children": [
+      {
+        "id": "2413cade81a9450c",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "a4725853b86939b6",
+            "type": "leaf",
+            "state": {
+              "type": "backlink",
+              "state": {
+                "file": "notes/week4/消融实验设计.md",
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical",
+                "showSearch": false,
+                "searchQuery": "",
+                "backlinkCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-coming-in",
+              "title": "消融实验设计 的反向链接列表"
+            }
+          },
+          {
+            "id": "6e03d67d0afca85b",
+            "type": "leaf",
+            "state": {
+              "type": "outgoing-link",
+              "state": {
+                "file": "基础知识学习计划.pdf",
+                "linksCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-going-out",
+              "title": "基础知识学习计划 的出链列表"
+            }
+          },
+          {
+            "id": "b9260b91654f5206",
+            "type": "leaf",
+            "state": {
+              "type": "tag",
+              "state": {
+                "sortOrder": "frequency",
+                "useHierarchy": true,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-tags",
+              "title": "标签"
+            }
+          },
+          {
+            "id": "5732c4d34949e77b",
+            "type": "leaf",
+            "state": {
+              "type": "all-properties",
+              "state": {
+                "sortOrder": "frequency",
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-archive",
+              "title": "添加笔记属性"
+            }
+          },
+          {
+            "id": "10c06a98e28e6241",
+            "type": "leaf",
+            "state": {
+              "type": "outline",
+              "state": {
+                "file": "基础知识学习计划.pdf",
+                "followCursor": false,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-list",
+              "title": "基础知识学习计划 的大纲"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300,
+    "collapsed": true
+  },
+  "left-ribbon": {
+    "hiddenItems": {
+      "switcher:打开快速切换": false,
+      "graph:查看关系图谱": false,
+      "canvas:新建白板": false,
+      "daily-notes:打开/创建今天的日记": false,
+      "templates:插入模板": false,
+      "command-palette:打开命令面板": false,
+      "bases:新建数据库": false
+    }
+  },
+  "active": "ed3f8fc4ae6a3c33",
+  "lastOpenFiles": [
+    "notes/面试准备.md",
+    "notes/week4/汇报架构.md",
+    "notes/week4/消融实验设计.md",
+    "未命名",
+    "notes/week4/ppt/index.html.tmp.31736.62c6d01ad524",
+    "cuda_code/build/CMakeFiles/CMakeScratch/TryCompile-mbi6p1/CMakeFiles/cmTC_22639.dir/vc140.pdb",
+    "cuda_code/build/CMakeFiles/CMakeScratch/TryCompile-mbi6p1/CMakeFiles/cmTC_22639.dir/main.cu.obj.d",
+    "cuda_code/build/CMakeFiles/CMakeScratch/TryCompile-mbi6p1/CMakeFiles/TargetDirectories.txt",
+    "cuda_code/build/CMakeFiles/CMakeScratch/TryCompile-mbi6p1/CMakeFiles/rules.ninja",
+    "cuda_code/build/CMakeFiles/CMakeScratch/TryCompile-mbi6p1/CMakeFiles/pkgRedirects",
+    "cuda_code/build/CMakeFiles/CMakeScratch/TryCompile-mbi6p1/CMakeFiles/InstallScripts.json",
+    "cuda_code/build/CMakeFiles/CMakeScratch/TryCompile-mbi6p1/CMakeFiles/cmTC_22639.dir",
+    "cuda_code/build/CMakeFiles/CMakeScratch/TryCompile-mbi6p1/CMakeFiles/cmake.check_cache",
+    "notes/week4/笔记1.md",
+    "notes/week4/ppt/_shots/sm-slide-39.jpg",
+    "notes/week4/ppt/_shots/sm-slide-38.jpg",
+    "notes/week4/ppt/_shots/sm-slide-36.jpg",
+    "notes/week4/ppt/_shots/sm-slide-34.jpg",
+    "notes/week4/ppt/_shots/sm-slide-30.jpg",
+    "notes/week4/ppt/_shots/sm-slide-28.jpg",
+    "notes/week4/ppt/_shots/sm-slide-24.jpg",
+    "notes/week4/ppt/_shots/sm-slide-21.jpg",
+    "notes/week4/ppt/_shots/sm-slide-15.jpg",
+    "notes/week4/ppt/_shots/sm-slide-13.jpg",
+    "notes/week4/ppt/PPT框架.md",
+    "cuda_code/CODA/README.md",
+    "notes/week4/论文翻译.md",
+    "notes/week2/ppt/node_modules/readable-stream/doc/wg-meetings/2015-01-30.md",
+    "notes/week4/coda-kernels-main/coda/core/docs/ncu_profiling.md",
+    "notes/week4/coda-kernels-main/coda/core/docs/compute_sanitizer.md",
+    "notes/week2/ppt/node_modules/@types/node/README.md",
+    "notes/week2/ppt/node_modules/undici-types/README.md",
+    "notes/week2/ppt/node_modules/util-deprecate/README.md",
+    "notes/week2/ppt/node_modules/util-deprecate/History.md",
+    "notes/week2/ppt/node_modules/string_decoder/README.md",
+    "notes/week2/ppt/node_modules/safe-buffer/README.md",
+    "notes/week2/ppt/node_modules/readable-stream/README.md",
+    "notes/week2/ppt/node_modules/readable-stream/GOVERNANCE.md",
+    "notes/week2/ppt/node_modules/readable-stream/CONTRIBUTING.md",
+    "notes/week2/ppt/node_modules/process-nextick-args/readme.md",
+    "notes/week2/ppt/node_modules/process-nextick-args/license.md",
+    "notes/week2/ppt/node_modules/queue/readme.md",
+    "notes/week2/ppt/node_modules/pptxgenjs/README.md",
+    "notes/week2/ppt/node_modules/pako/README.md",
+    "notes/week2/ppt/node_modules/pako/CHANGELOG.md",
+    "notes/week2/ppt/node_modules/lie/README.md"
+  ]
+}

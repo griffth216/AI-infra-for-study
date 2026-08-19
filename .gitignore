@@ -1,0 +1,44 @@
+# Local assistant settings (may contain machine-specific paths or permissions)
+.claude/
+
+# Python caches and environments
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+
+# JavaScript dependencies and build output
+node_modules/
+dist/
+
+# CMake/CUDA build artifacts
+build/
+cmake-build-*/
+CMakeFiles/
+CMakeCache.txt
+*.exe
+*.obj
+*.o
+*.cubin
+*.ptx
+*.fatbin
+
+# IDE and OS files
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Microsoft Office temporary files
+~$*
+
+# Secrets and local environment files
+.env
+.env.*
+*.pem
+*.p12
+*.pfx
+
